@@ -7,269 +7,122 @@
 
 namespace ioremap { namespace wookie { namespace lemmer {
 
-struct base_token {
-	base_token() : value(0) {}
+enum token_class {
+	none = 0,
+	wcase,
+	family,
+	number,
+	alive,
+	fullness,
+	participle,
+	voice,
+	name,
+	type,
+	oldness,
+	time,
+	completeness,
+	inclination,
+	face,
+	comparison,
+	location,
+	organization,
+	infinitive,
+	possessive,
+	jargon,
+	profanity,
 
-	bool set(const std::vector<std::string> &tokens, const std::string &token) {
+	weird,
+};
+
+struct token_entity {
+	token_entity() : type(none), position(-1) {}
+	token_class	type;
+	int		position;
+};
+
+struct parser {
+	std::map<std::string, token_entity> t2p;
+
+	void push(const std::vector<std::string> &tokens, token_class type) {
 		for (auto it = tokens.begin(); it != tokens.end(); ++it) {
-			if (*it == token) {
-				value = it - tokens.begin();
-				return true;
-			}
+			insert(*it, it - tokens.begin() + t2p.size(), type);
 		}
-
-		return false;
 	}
 
-	virtual bool try_parse(const std::string &) = 0;
-
-	int value;
-};
-
-struct wcase : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> wcase_tokens = { "им", "род", "дат", "вин", "твор", "пр" };
-		return set(wcase_tokens, token);
+	void push(const std::string &bool_token, token_class type) {
+		insert(bool_token, 1 + t2p.size(), type);
 	}
-};
 
-struct number : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> number_tokens = { "ед", "мн" };
-		return set(number_tokens, token);
+	token_entity try_parse(const std::string &token) {
+		token_entity tok;
+
+		auto it = t2p.find(token);
+		if (it != t2p.end())
+			tok = it->second;
+
+		return tok;
 	}
-};
 
-struct alive : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> alive_tokens = { "неод", "од" };
-		return set(alive_tokens, token);
+	void insert(const std::string &token, int position, token_class type) {
+		token_entity t;
+
+		auto pos = t2p.find(token);
+		if (pos == t2p.end()) {
+			t.type = type;
+			t.position = position;
+
+			t2p[token] = t;
+		} else if (pos->second.type != type) {
+			throw std::runtime_error("Type mismatch for token: '" + token + "'");
+		}
 	}
-};
 
-struct fullness : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> fullness_tokens = { "полн", "кр" };
-		return set(fullness_tokens, token);
+	parser() {
+		push({ "им", "род", "дат", "вин", "твор", "пр" }, wcase);
+		push({ std::string("ед"), "мн" }, number);
+		push({ std::string("неод"), "од" }, alive);
+		push({ std::string("полн"), "кр" }, fullness);
+		push({ "муж", "жен", "сред", "мж" }, family);
+		push("устар", oldness);
+		push({ std::string("прич"), "деепр" }, participle);
+		push({ std::string("действ"), "страд" }, voice);
+		push({ "имя", "отч", "фам" }, name);
+		push({ "S", "A", "V", "PART", "PR", "CONJ", "INTJ", "ADV", "PRDK", "SPRO", "COM", "APRO", "ANUM" }, type);
+
+		token_entity ent;
+		ent = try_parse("ADV");
+		insert("ADVPRO", ent.position, ent.type);
+		ent = try_parse("ANUM");
+		insert("NUM", ent.position, ent.type);
+
+		push({ "наст", "прош", "буд" }, time);
+		push({ "1", "2", "3" }, face);
+		push({ std::string("сов"), "несов" }, completeness);
+		push({ "сосл", "пов", "изъяв" }, inclination);
+		push("гео", location);
+		push("орг", organization);
+		push({ std::string("срав"), "прев" }, comparison);
+		push("инф", infinitive);
+
+		push("притяж", possessive);
+		ent = try_parse("притяж");
+		insert("AOT_притяж", ent.position, ent.type);
+
+		push("жарг", jargon);
+		
+		push("obsclite", profanity);
+		ent = try_parse("obsclite");
+		insert("обсц", ent.position, ent.type);
+
+		push({ "непрош", "пе", "-", "л", "нп", "reserved", "AOT_разг", "dsbl", "сокр",
+			"парт", "вводн", "местн", "редк", "AOT_ФРАЗ", "AOT_безл", "зват", "разг", "AOT_фраз", "AOT_указат", "буфф" }, weird);
 	}
-};
 
-struct family : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> family_tokens = { "муж", "жен", "сред", "мж" };
-		return set(family_tokens, token);
-	}
-};
-
-struct oldness : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> oldness_tokens = { "XXXXXXX", "устар" };
-		return set(oldness_tokens, token);
-	}
-};
-
-struct participle : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> participle_tokens = { "ЪЪЪЪЪЪ", "прич", "деепр" };
-		return set(participle_tokens, token);
-	}
-};
-
-struct voice : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> voice_tokens = { "действ", "страд" };
-		return set(voice_tokens, token);
-	}
-};
-
-struct name : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> name_tokens = { "name-token", "имя", "отч", "фам" };
-		return set(name_tokens, token);
-	}
-};
-
-struct type : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> type_tokens1 = { "S", "A", "V", "PART", "PR", "CONJ", "INTJ", "ADV", "PRDK", "SPRO", "COM", "APRO", "ANUM" };
-		if (set(type_tokens1, token))
-			return true;
-		static std::vector<std::string> type_tokens2 = { "S", "A", "V", "PART", "PR", "CONJ", "INTJ", "ADVPRO", "PRDK", "SPRO", "COM", "APRO", "NUM" };
-		if (set(type_tokens2, token))
-			return true;
-
-		return false;
-	}
-};
-
-struct time : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> time_tokens = { "наст", "прош", "буд" };
-		return set(time_tokens, token);
-	}
-};
-
-struct face : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> face_tokens = { "1", "2", "3" };
-		return set(face_tokens, token);
-	}
-};
-
-struct completeness : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> complete_tokens = { "несов", "сов" };
-		return set(complete_tokens, token);
-	}
-};
-
-struct inclination : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> incline_tokens = { "сосл", "пов", "изъяв" };
-		return set(incline_tokens, token);
-	}
-};
-
-struct location : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> loc_tokens = { "asdasd", "гео" };
-		return set(loc_tokens, token);
-	}
-};
-
-struct organization : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> org_tokens = { "asdasd", "орг" };
-		return set(org_tokens, token);
-	}
-};
-
-struct comparison : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> comp_tokens = { "asdasd", "срав", "прев" };
-		return set(comp_tokens, token);
-	}
-};
-
-struct infinitive : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> inf_tokens = { "asdasd", "инф" };
-		return set(inf_tokens, token);
-	}
-};
-
-struct possessive : public base_token {
-	bool try_parse(const std::string &token) {
-		// positions for the same entities have to match
-		static std::vector<std::string> poss_tokens1 = { "asdasd", "притяж" };
-		if (set(poss_tokens1, token))
-			return true;
-		static std::vector<std::string> poss_tokens2 = { "asdasd", "AOT_притяж" };
-		if (set(poss_tokens2, token))
-			return true;
-
-		return false;
-	}
-};
-
-struct jargon : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> jar_tokens = { "asdasd", "жарг" };
-		return set(jar_tokens, token);
-	}
-};
-
-struct profanity : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> profan_tokens = { "asdasd", "obsclite", "обсц" };
-		return set(profan_tokens, token);
-	}
-};
-
-struct weird : public base_token {
-	bool try_parse(const std::string &token) {
-		static std::vector<std::string> weird_tokens = { "непрош", "пе", "-", "л", "нп", "reserved", "AOT_разг", "dsbl", "сокр",
-			"парт", "вводн", "местн", "редк", "AOT_ФРАЗ", "AOT_безл", "зват", "разг", "AOT_фраз", "AOT_указат", "буфф" };
-		return set(weird_tokens, token);
-	}
 };
 
 struct parsed_word {
 	std::string	ending;
-
-	wcase		cs;
-	family		fam;
-	number		num;
-	alive		live;
-	fullness	full;
-	participle	partic;
-	voice		v;
-	name		nam;
-	type		t;
-	oldness		old;
-	time		tm;
-	completeness	comp;
-	inclination	inc;
-	face		fc;
-	comparison	cmp;
-	location	loc;
-	organization	org;
-	infinitive	inf;
-	possessive	poss;
-	jargon		jar;
-	profanity	profan;
-
-	weird		skip;
-
-	bool parse(const std::string &token) {
-		if (cs.try_parse(token))
-			return true;
-		if (fam.try_parse(token))
-			return true;
-		if (num.try_parse(token))
-			return true;
-		if (live.try_parse(token))
-			return true;
-		if (full.try_parse(token))
-			return true;
-		if (partic.try_parse(token))
-			return true;
-		if (v.try_parse(token))
-			return true;
-		if (nam.try_parse(token))
-			return true;
-		if (t.try_parse(token))
-			return true;
-		if (old.try_parse(token))
-			return true;
-		if (tm.try_parse(token))
-			return true;
-		if (comp.try_parse(token))
-			return true;
-		if (inc.try_parse(token))
-			return true;
-		if (fc.try_parse(token))
-			return true;
-		if (loc.try_parse(token))
-			return true;
-		if (cmp.try_parse(token))
-			return true;
-		if (org.try_parse(token))
-			return true;
-		if (inf.try_parse(token))
-			return true;
-		if (poss.try_parse(token))
-			return true;
-		if (jar.try_parse(token))
-			return true;
-		if (profan.try_parse(token))
-			return true;
-
-		if (skip.try_parse(token))
-			return true;
-
-		return false;
-	}
+	token_entity	ent;
 };
 
 struct record {
@@ -279,6 +132,9 @@ struct record {
 struct base_holder {
 	std::locale m_loc;
 	std::map<std::string, record> words;
+	parser p;	
+
+	std::set<std::string> endings;
 
 	base_holder() {
 		boost::locale::generator gen;
@@ -341,7 +197,8 @@ struct base_holder {
 			if (!(it->rule() & lb::word_any))
 				continue;
 
-			if (!rec.parse(it->str()))
+			rec.ent = p.try_parse(it->str());
+			if (rec.ent.type == none)
 				failed.push_back(it->str());
 
 			have_data = true;
@@ -357,10 +214,6 @@ struct base_holder {
 			for (auto it = failed.begin(); it != failed.end(); ++it)
 				std::cout << *it << " ";
 			std::cout << std::endl;
-		} else if (0) {
-			std::cout << token_str << ": root: " << root <<
-				", ending: " << rec.ending <<
-				std::endl;
 		}
 
 		words[root].forms.emplace_back(rec);
