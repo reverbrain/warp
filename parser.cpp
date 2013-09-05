@@ -233,18 +233,22 @@ struct base_holder {
 	}
 };
 
-static void output_string(std::ofstream &out, const std::vector<std::string> &letters, const std::string &word, std::locale &loc)
+static void output_string(std::ofstream &out, const std::vector<std::string> &letters, const std::string &word, std::locale &loc, int max)
 {
 	lb::ssegment_index wmap(lb::character, word.begin(), word.end(), loc);
 
-	std::vector<double> out_vec;
+	std::vector<double> out_vec(max, 0.001);
+	int offset = 0;
+
 	for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
 		auto pos = std::lower_bound(letters.begin(), letters.end(), it->str());
 		if (*pos == it->str()) {
 			double val = pos - letters.begin() + 1;
 			val = val / (letters.size() * 2.0);
 
-			out_vec.push_back(val);
+			out_vec[offset++] = val;
+			if (offset > max)
+				break;
 		}
 	}
 
@@ -282,12 +286,15 @@ static void parse(const std::string &input_file, const std::string &output_file)
 		letters.push_back(*it);
 	}
 
-	out << records.total << " " << 16 + 128 << " " << records.p.unique + 16 << std::endl;
+	int ending_size = 8;
+	int word_size = 24 + ending_size;
+
+	out << records.total << " " << word_size << " " << records.p.unique + ending_size << std::endl;
 	for (auto root = records.words.begin(); root != records.words.end(); ++root) {
 		for (auto rec = root->second.forms.begin(); rec != root->second.forms.end(); ++rec) {
 			std::string word = root->first + rec->ending;
 
-			output_string(out, letters, word, records.m_loc);
+			output_string(out, letters, word, records.m_loc, word_size);
 			out << "\n";
 
 			for (int i = 0; i < records.p.unique; ++i) {
@@ -298,7 +305,7 @@ static void parse(const std::string &input_file, const std::string &output_file)
 				out << tmp << " ";
 			}
 
-			output_string(out, letters, rec->ending, records.m_loc);
+			output_string(out, letters, rec->ending, records.m_loc, ending_size);
 			out << "\n";
 		}
 	}
