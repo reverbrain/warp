@@ -9,6 +9,8 @@ namespace lb = boost::locale::boundary;
 
 namespace ioremap { namespace wookie { namespace lemmer {
 
+static const double default_zero = 0.001;
+
 enum token_class {
 	none = 0,
 	wcase,
@@ -40,6 +42,10 @@ struct token_entity {
 	token_entity() : type(none), position(-1) {}
 	token_class	type;
 	int		position;
+
+	bool operator() (const token_entity &a, const token_entity &b) {
+		return a.position < b.position;
+	}
 };
 
 struct parser {
@@ -48,7 +54,7 @@ struct parser {
 
 	void push(const std::vector<std::string> &tokens, token_class type) {
 		for (auto it = tokens.begin(); it != tokens.end(); ++it) {
-			if (insert(*it, it - tokens.begin() + unique, type))
+			if (insert(*it, unique, type))
 				++unique;
 		}
 	}
@@ -86,11 +92,11 @@ struct parser {
 		push({ "им", "род", "дат", "вин", "твор", "пр" }, wcase);
 		push({ std::string("ед"), "мн" }, number);
 		push({ std::string("неод"), "од" }, alive);
-		push({ std::string("полн"), "кр" }, fullness);
+		//push({ std::string("полн"), "кр" }, fullness);
 		push({ "муж", "жен", "сред", "мж" }, family);
-		push("устар", oldness);
-		push({ std::string("прич"), "деепр" }, participle);
-		push({ std::string("действ"), "страд" }, voice);
+		//push("устар", oldness);
+		//push({ std::string("прич"), "деепр" }, participle);
+		//push({ std::string("действ"), "страд" }, voice);
 		push({ "имя", "отч", "фам" }, name);
 		push({ "S", "A", "V", "PART", "PR", "CONJ", "INTJ", "ADV", "PRDK", "SPRO", "COM", "APRO", "ANUM" }, type);
 
@@ -102,10 +108,10 @@ struct parser {
 
 		push({ "наст", "прош", "буд" }, time);
 		push({ "1", "2", "3" }, face);
-		push({ std::string("сов"), "несов" }, completeness);
-		push({ "сосл", "пов", "изъяв" }, inclination);
-		push("гео", location);
-		push("орг", organization);
+		//push({ std::string("сов"), "несов" }, completeness);
+		//push({ "сосл", "пов", "изъяв" }, inclination);
+		//push("гео", location);
+		//push("орг", organization);
 		push({ std::string("срав"), "прев" }, comparison);
 		push("инф", infinitive);
 
@@ -114,7 +120,7 @@ struct parser {
 		insert("AOT_притяж", ent.position, ent.type);
 
 		push("жарг", jargon);
-		
+
 		push("obsclite", profanity);
 		ent = try_parse("obsclite");
 		insert("обсц", ent.position, ent.type);
@@ -125,8 +131,8 @@ struct parser {
 };
 
 struct parsed_word {
-	std::string	ending;
-	token_entity	ent;
+	std::string			ending;
+	std::vector<token_entity>	ent;
 };
 
 struct record {
@@ -155,7 +161,6 @@ struct base_holder {
 		std::string root;
 		parsed_word rec;
 
-		bool have_data = false;
 		std::vector<std::string> failed;
 
 		for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
@@ -202,15 +207,18 @@ struct base_holder {
 			if (!(it->rule() & lb::word_any))
 				continue;
 
-			rec.ent = p.try_parse(it->str());
-			if (rec.ent.type == none)
+			token_entity ent = p.try_parse(it->str());
+			if (ent.type == none) {
 				failed.push_back(it->str());
-			else
-				have_data = true;
+			} else {
+				rec.ent.emplace_back(ent);
+			}
 		}
 
-		if (!have_data)
+		if (!rec.ent.size())
 			return;
+
+		std::sort(rec.ent.begin(), rec.ent.end(), token_entity());
 
 		if (0 && failed.size()) {
 			std::cout << token << ": root: " << root <<
@@ -218,6 +226,16 @@ struct base_holder {
 				", failed: ";
 			for (auto it = failed.begin(); it != failed.end(); ++it)
 				std::cout << *it << " ";
+			std::cout << std::endl;
+		} else if (0) {
+			std::cout << token << ": root: " << root <<
+				", ending: " << rec.ending <<
+				", features: " << rec.ent.size() <<
+				", total unique: " << p.unique <<
+				": ";
+			for (const auto & a : rec.ent) {
+				std::cout << a.type << "." << a.position << " ";
+			}
 			std::cout << std::endl;
 		}
 
@@ -237,8 +255,7 @@ static void output_string(std::ofstream &out, const std::vector<std::string> &le
 {
 	lb::ssegment_index wmap(lb::character, word.begin(), word.end(), loc);
 
-	std::vector<double> out_vec(max, 0.001);
-	int offset = 0;
+	std::vector<double> out_vec;
 
 	for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
 		auto pos = std::lower_bound(letters.begin(), letters.end(), it->str());
@@ -246,15 +263,20 @@ static void output_string(std::ofstream &out, const std::vector<std::string> &le
 			double val = pos - letters.begin() + 1;
 			val = val / (letters.size() * 2.0);
 
-			out_vec[offset++] = val;
-			if (offset > max)
-				break;
+			out_vec.push_back(val);
 		}
 	}
 
-	std::reverse(out_vec.begin(), out_vec.end());
-	for (auto it = out_vec.begin(); it != out_vec.end(); ++it)
+	int position = 0;
+	for (auto it = out_vec.rbegin(); it != out_vec.rend(); ++it) {
 		out << *it << " ";
+
+		if (++position >= max)
+			break;
+	}
+
+	for (; position < max; ++position)
+		out << default_zero << " ";
 }
 
 static void parse(const std::string &input_file, const std::string &output_file)
@@ -297,15 +319,19 @@ static void parse(const std::string &input_file, const std::string &output_file)
 			output_string(out, letters, word, records.m_loc, word_size);
 			out << "\n";
 
+			output_string(out, letters, rec->ending, records.m_loc, ending_size);
+
+			size_t pos = 0;
 			for (int i = 0; i < records.p.unique; ++i) {
-				double tmp = 0.001;
-				if (i == rec->ent.position)
+				double tmp = default_zero;
+
+				if ((pos < rec->ent.size()) && (i == rec->ent[pos].position)) {
 					tmp = 1.0;
+					++pos;
+				}
 
 				out << tmp << " ";
 			}
-
-			output_string(out, letters, rec->ending, records.m_loc, ending_size);
 			out << "\n";
 		}
 	}
