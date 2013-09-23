@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 2.6)
-project (lemmer)
+project (warp)
 
 add_definitions(-g -std=c++11 -W -Wall -Wextra -fstack-protector-all)
 
@@ -18,13 +18,13 @@ link_directories(
 	${FANN_LIBRARY_DIRS}
 )
 
-add_executable(lemmer_parser parser.cpp)
-target_link_libraries(lemmer_parser
+add_executable(warp_zparser zparser.cpp)
+target_link_libraries(warp_zparser
 	${Boost_LIBRARIES}
 )
 
-add_executable(lemmer_ann nnet.cpp)
-target_link_libraries(lemmer_ann
+add_executable(warp_ann_learn ann_learn.cpp)
+target_link_libraries(warp_ann_learn
 	${Boost_LIBRARIES}
 	${FANN_LIBRARIES}
 )
