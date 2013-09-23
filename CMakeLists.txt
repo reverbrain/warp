@@ -28,3 +28,9 @@ target_link_libraries(warp_ann_learn
 	${Boost_LIBRARIES}
 	${FANN_LIBRARIES}
 )
+
+add_executable(warp_ann_check ann_check.cpp)
+target_link_libraries(warp_ann_check
+	${Boost_LIBRARIES}
+	${FANN_LIBRARIES}
+)

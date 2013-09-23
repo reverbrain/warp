@@ -1,6 +1,7 @@
-#include <boost/program_options.hpp>
-#include <fstream>
 #include <fann.h>
+
+#include <fstream>
+#include <boost/program_options.hpp>
 
 int main(int argc, char *argv[])
 {
@@ -47,6 +48,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	int err;
 	struct fann *ann = fann_create_standard(num_layers, num_input, num_neurons_hidden, num_output);
 
 	fann_set_activation_function_hidden(ann, FANN_SIGMOID_SYMMETRIC);
@@ -61,7 +63,12 @@ int main(int argc, char *argv[])
 
 	fann_train_on_file(ann, input.c_str(), max_epochs, epochs_between_reports, desired_error);
 
-	fann_save(ann, (input + ".net." + boost::lexical_cast<std::string>(getpid())).c_str());
+	std::string output = input + ".net." + boost::lexical_cast<std::string>(getpid());
+	err = fann_save(ann, output.c_str());
+	if (err) {
+		struct fann_error ferr;
+		std::cerr << "Save to '" << output << "': error: " << fann_get_errstr(&ferr) << std::endl;
+	}
 
 	fann_destroy(ann);
 
