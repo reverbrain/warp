@@ -20,7 +20,7 @@ static void parse(const std::string &input_file, const std::string &output_file)
 			continue;
 		}
 
-		records.parse_string(line);
+		records.parse_dict_string(line);
 	}
 
 	int ending_size = 8;

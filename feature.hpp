@@ -11,7 +11,7 @@
 
 namespace ioremap { namespace warp {
 
-static const double default_zero = 0.001;
+static const float default_zero = 0.001;
 
 namespace lb = boost::locale::boundary;
 
@@ -87,6 +87,8 @@ struct parser {
 			t.position = position;
 
 			t2p[token] = t;
+
+			std::cout << token << ": " << type << "." << position << std::endl;
 		}
 
 		return pos == t2p.end();
@@ -150,7 +152,19 @@ class base_holder {
 			m_loc = gen("en_US.UTF8");
 		}
 
-		void parse_string(const std::string &token_str) {
+		std::vector<std::string> split(const std::string &sentence) {
+			lb::ssegment_index wmap(lb::word, sentence.begin(), sentence.end(), m_loc);
+			wmap.rule(lb::word_any);
+
+			std::vector<std::string> ret;
+			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
+				ret.push_back(it->str());
+			}
+
+			return ret;
+		}
+
+		void parse_dict_string(const std::string &token_str) {
 			std::string token = boost::locale::to_lower(token_str, m_loc);
 
 			lb::ssegment_index wmap(lb::word, token.begin(), token.end(), m_loc);
@@ -248,31 +262,48 @@ class base_holder {
 			}
 		}
 
-		void output_string(std::ofstream &out, const std::vector<std::string> &lv, const std::string &word, int max) {
+		template <typename T>
+		std::vector<T> convert_word(const std::vector<std::string> &lv, const std::string &word, int max) {
 			lb::ssegment_index wmap(lb::character, word.begin(), word.end(), m_loc);
 
-			std::vector<double> out_vec;
+			std::vector<T> out_vec;
 
 			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
 				auto pos = std::lower_bound(lv.begin(), lv.end(), it->str());
 				if (*pos == it->str()) {
-					double val = pos - lv.begin();
+					T val = pos - lv.begin();
 					val = (val + 1.0) / (m_letters.size() * 2.0);
 
 					out_vec.push_back(val);
 				}
 			}
 
-			int position = 0;
-			for (auto it = out_vec.rbegin(); it != out_vec.rend(); ++it) {
-				out << *it << " ";
-
-				if (++position >= max)
-					break;
+			for (int position = out_vec.size(); position < max; ++position) {
+				out_vec.push_back(default_zero);
 			}
 
-			for (; position < max; ++position)
-				out << default_zero << " ";
+			return out_vec;
+		}
+
+		void output_string(std::ofstream &out, const std::vector<std::string> &lv, const std::string &word, int max) {
+			std::vector<float> f = convert_word<float>(lv, word, max);
+
+			for (auto it = f.begin(); it != f.end(); ++it)
+				out << *it << " ";
+		}
+
+		std::vector<std::string> load_letters(const std::string &path) {
+			std::ifstream in(path.c_str());
+
+			std::string line;
+			while (std::getline(in, line)) {
+				m_letters.insert(line);
+			}
+
+			std::vector<std::string> lv;
+			std::copy(m_letters.begin(), m_letters.end(), std::back_inserter(lv));
+
+			return lv;
 		}
 
 		void dump_letters(const std::string &output) {
@@ -302,7 +333,7 @@ class base_holder {
 
 					size_t pos = 0;
 					for (int i = 0; i < m_p.unique; ++i) {
-						double tmp = default_zero;
+						float tmp = default_zero;
 
 						if ((pos < rec->ent.size()) && (i == rec->ent[pos].position)) {
 							tmp = 1.0;
