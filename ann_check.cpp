@@ -17,6 +17,11 @@ class check {
 			m_lv = m_base.load_letters(input_letters);
 
 			m_ann.create_from_file(input.c_str());
+			if (m_ann.get_errno()) {
+				std::ostringstream ss;
+				ss << "FANN creation failed: " << m_ann.get_errstr();
+				throw std::runtime_error(ss.str());
+			}
 
 			m_input = m_ann.get_num_input();
 			m_output = m_ann.get_num_output();
@@ -96,12 +101,22 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	ioremap::warp::check ch(input, input_letters);
-	std::ifstream in("/dev/stdin");
+	try {
+		ioremap::warp::check ch(input, input_letters);
+		std::ifstream in("/dev/stdin");
 
-	std::string line;
-	while (std::getline(in, line)) {
-		ch.run(line, grammar);
+		if (!in.good()) {
+			std::cerr << "Could not open stdin" << std::endl;
+			return -1;
+		}
+
+		std::string line;
+		while (std::getline(in, line)) {
+			ch.run(line, grammar);
+		}
+	} catch (const std::exception &e) {
+		std::cerr << "Exception caught during FANN run: " << e.what() << std::endl;
+		return -1;
 	}
 
 	return 0;

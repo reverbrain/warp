@@ -294,6 +294,7 @@ class base_holder {
 
 		std::vector<std::string> load_letters(const std::string &path) {
 			std::ifstream in(path.c_str());
+			in.exceptions(std::ifstream::failbit);
 
 			std::string line;
 			while (std::getline(in, line)) {
