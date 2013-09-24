@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
 	int num_output = 64;
 	int num_layers = 3;
 	const float desired_error = (const float) 0.001;
-	int max_epochs = 200;
+	int max_epochs = 50;
 	int epochs_between_reports = 1;
 	int total;
 	std::string input;
@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
 		("help", "This help message")
 		("input", bpo::value<std::string>(&input), "Input file")
 		("hidden", bpo::value<int>(&num_neurons_hidden), "Number of neurons in the hidden layer")
+		("epoch", bpo::value<int>(&max_epochs), "Maximum number of training epochs")
 		;
 
 	bpo::variables_map vm;
