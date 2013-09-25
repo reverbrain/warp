@@ -44,11 +44,22 @@ class check {
 
 				output = m_ann.run(f.data());
 
+				unsigned ending_size = 8;
+				std::cout << *word << ": ";
+				for (unsigned i = 0; i < m_output; ++i) {
+					if (i == ending_size)
+						std::cout << "| ";
+
+					std::cout << output[i] << " ";
+				}
+				std::cout << std::endl;
+
 				std::vector<ioremap::warp::token_entity> matched;
 				for (auto ent = ents.begin(); ent != ents.end(); ++ent) {
 					if (output[ent->position] > 0.8)
 						matched.push_back(*ent);
 				}
+
 				if (matched.size()) {
 					std::cout << *word << ": ";
 					for (auto ent = matched.begin(); ent != matched.end(); ++ent)

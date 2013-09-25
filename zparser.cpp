@@ -11,7 +11,11 @@ static void parse(const std::string &input_file, const std::string &output_file)
 	std::string line;
 	std::string word;
 
+	int lines = 0;
 	while (std::getline(in, line)) {
+		if (++lines % 100000 == 0)
+			std::cout << "Read and parsed " << lines << " lines" << std::endl;
+
 		if (line.substr(0, 5) == "@ID: ") {
 			// skip next line - it contains original word
 			if (!std::getline(in, line))
@@ -22,8 +26,9 @@ static void parse(const std::string &input_file, const std::string &output_file)
 
 		records.parse_dict_string(line);
 	}
+	std::cout << "Read and parsed " << lines << " lines" << std::endl;
 
-	int ending_size = 8;
+	int ending_size = 6;
 	int word_size = 24 + ending_size;
 
 	records.dump_features(output_file, word_size, ending_size);

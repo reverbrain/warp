@@ -267,19 +267,22 @@ class base_holder {
 			lb::ssegment_index wmap(lb::character, word.begin(), word.end(), m_loc);
 
 			std::vector<T> out_vec;
+			out_vec.resize(max * lv.size(), default_zero);
+
+			std::vector<int> positions;
 
 			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
 				auto pos = std::lower_bound(lv.begin(), lv.end(), it->str());
 				if (*pos == it->str()) {
-					T val = pos - lv.begin();
-					val = (val + 1.0) / (m_letters.size() * 2.0);
-
-					out_vec.push_back(val);
+					positions.push_back(pos - lv.begin());
 				}
 			}
 
-			for (int position = out_vec.size(); position < max; ++position) {
-				out_vec.push_back(default_zero);
+			int letter = 0;
+			for (auto pos = positions.rbegin(); pos != positions.rend(); ++pos) {
+				out_vec[*pos + letter * lv.size()] = 1;
+				if (--max == 0)
+					break;
 			}
 
 			return out_vec;
@@ -294,7 +297,12 @@ class base_holder {
 
 		std::vector<std::string> load_letters(const std::string &path) {
 			std::ifstream in(path.c_str());
-			in.exceptions(std::ifstream::failbit);
+
+			if (!in.good()) {
+				std::ostringstream ss;
+				ss << "Failed to open letters file '" << path << "'";
+				throw std::runtime_error(ss.str());
+			}
 
 			std::string line;
 			while (std::getline(in, line)) {
@@ -322,7 +330,9 @@ class base_holder {
 
 			dump_letters(output + ".letters");
 
-			out << m_total << " " << word_size << " " << m_p.unique + ending_size << std::endl;
+			int word_num = 0;
+			int features = 0;
+			out << m_total << " " << word_size * m_letters.size() << " " << m_p.unique + ending_size * m_letters.size() << std::endl;
 			for (auto root = m_words.begin(); root != m_words.end(); ++root) {
 				for (auto rec = root->second.forms.begin(); rec != root->second.forms.end(); ++rec) {
 					std::string word = root->first + rec->ending;
@@ -344,8 +354,14 @@ class base_holder {
 						out << tmp << " ";
 					}
 					out << "\n";
+					features++;
 				}
+
+				if (++word_num % (m_words.size() / 100) == 0)
+					std::cout << "Dumped " << word_num << "/" << m_words.size() << " words, number of features: " << features << std::endl;
 			}
+
+			std::cout << "Dumped " << word_num << "/" << m_words.size() << " words, number of features: " << features << std::endl;
 		}
 
 	private:
