@@ -283,6 +283,7 @@ class base_holder {
 				out_vec[*pos + letter * lv.size()] = 1;
 				if (--max == 0)
 					break;
+				++letter;
 			}
 
 			return out_vec;
