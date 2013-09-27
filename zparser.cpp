@@ -28,8 +28,8 @@ static void parse(const std::string &input_file, const std::string &output_file)
 	}
 	std::cout << "Read and parsed " << lines << " lines" << std::endl;
 
-	int ending_size = 6;
-	int word_size = 24 + ending_size;
+	int ending_size = 5;
+	int word_size = 5 + ending_size;
 
 	records.dump_features(output_file, word_size, ending_size);
 }
