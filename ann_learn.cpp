@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
 
 	fann_set_activation_function_hidden(ann, FANN_SIGMOID_SYMMETRIC);
 	fann_set_activation_function_output(ann, FANN_SIGMOID_SYMMETRIC);
+	fann_set_training_algorithm(ann, FANN_TRAIN_INCREMENTAL);
 
 	std::cout << "Total examples: " << total <<
 		", total layers: " << num_layers <<
