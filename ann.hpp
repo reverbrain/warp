@@ -3,6 +3,8 @@
 
 namespace ioremap { namespace warp {
 
+static const float default_zero = 0.001;
+
 class ann {
 	public:
 		ann() {

@@ -13,8 +13,6 @@
 
 namespace ioremap { namespace warp {
 
-static const float default_zero = 0.001;
-
 namespace lb = boost::locale::boundary;
 
 struct token_entity {
@@ -61,7 +59,7 @@ struct parser {
 
 			t2p[token] = t;
 
-			std::cout << token << ": " << position << std::endl;
+			//std::cout << token << ": " << position << std::endl;
 		}
 
 		return pos == t2p.end();
