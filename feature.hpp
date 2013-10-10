@@ -15,36 +15,8 @@ static const float default_zero = 0.001;
 
 namespace lb = boost::locale::boundary;
 
-enum token_class {
-	none = 0,
-	wcase,
-	family,
-	number,
-	alive,
-	fullness,
-	participle,
-	voice,
-	name,
-	type,
-	oldness,
-	time,
-	completeness,
-	inclination,
-	face,
-	comparison,
-	location,
-	organization,
-	infinitive,
-	possessive,
-	jargon,
-	profanity,
-
-	weird,
-};
-
 struct token_entity {
-	token_entity() : type(none), position(-1) {}
-	token_class	type;
+	token_entity() : position(-1) {}
 	int		position;
 
 	bool operator() (const token_entity &a, const token_entity &b) {
@@ -56,15 +28,15 @@ struct parser {
 	std::map<std::string, token_entity> t2p;
 	int unique;
 
-	void push(const std::vector<std::string> &tokens, token_class type) {
+	void push(const std::vector<std::string> &tokens) {
 		for (auto it = tokens.begin(); it != tokens.end(); ++it) {
-			if (insert(*it, unique, type))
+			if (insert(*it, unique))
 				++unique;
 		}
 	}
 
-	void push(const std::string &bool_token, token_class type) {
-		if (insert(bool_token, unique, type))
+	void push(const std::string &bool_token) {
+		if (insert(bool_token, unique))
 			++unique;
 	}
 
@@ -78,60 +50,59 @@ struct parser {
 		return tok;
 	}
 
-	bool insert(const std::string &token, int position, token_class type) {
+	bool insert(const std::string &token, int position) {
 		token_entity t;
 
 		auto pos = t2p.find(token);
 		if (pos == t2p.end()) {
-			t.type = type;
 			t.position = position;
 
 			t2p[token] = t;
 
-			std::cout << token << ": " << type << "." << position << std::endl;
+			std::cout << token << ": " << position << std::endl;
 		}
 
 		return pos == t2p.end();
 	}
 
 	parser() : unique(0) {
-		push({ "им", "род", "дат", "вин", "твор", "пр" }, wcase);
-		push({ std::string("ед"), "мн" }, number);
-		push({ std::string("неод"), "од" }, alive);
-		//push({ std::string("полн"), "кр" }, fullness);
-		push({ "муж", "жен", "сред", "мж" }, family);
+		push({ "им", "род", "дат", "вин", "твор", "пр" });
+		push({ std::string("ед"), "мн" });
+		push({ std::string("неод"), "од" });
+		//push({ std::string("полн"), "кр" });
+		push({ "муж", "жен", "сред", "мж" });
 		//push("устар", oldness);
-		//push({ std::string("прич"), "деепр" }, participle);
-		//push({ std::string("действ"), "страд" }, voice);
-		push({ "имя", "отч", "фам" }, name);
-		push({ "S", "A", "V", "PART", "PR", "CONJ", "INTJ", "ADV", "PRDK", "SPRO", "COM", "APRO", "ANUM" }, type);
+		//push({ std::string("прич"), "деепр" });
+		//push({ std::string("действ"), "страд" });
+		push({ "имя", "отч", "фам" });
+		push({ "S", "A", "V", "PART", "PR", "CONJ", "INTJ", "ADV", "PRDK", "SPRO", "COM", "APRO", "ANUM" });
 
 		token_entity ent;
 		ent = try_parse("ADV");
-		insert("ADVPRO", ent.position, ent.type);
+		insert("ADVPRO", ent.position);
 		ent = try_parse("ANUM");
-		insert("NUM", ent.position, ent.type);
+		insert("NUM", ent.position);
 
-		push({ "наст", "прош", "буд" }, time);
-		push({ "1", "2", "3" }, face);
-		//push({ std::string("сов"), "несов" }, completeness);
-		//push({ "сосл", "пов", "изъяв" }, inclination);
+		push({ "наст", "прош", "буд" });
+		push({ "1", "2", "3" });
+		//push({ std::string("сов"), "несов" });
+		//push({ "сосл", "пов", "изъяв" });
 		//push("гео", location);
 		//push("орг", organization);
-		push({ std::string("срав"), "прев" }, comparison);
-		push("инф", infinitive);
+		push({ std::string("срав"), "прев" });
+		push("инф");
 
-		push("притяж", possessive);
+		push("притяж");
 		ent = try_parse("притяж");
-		insert("AOT_притяж", ent.position, ent.type);
+		insert("AOT_притяж", ent.position);
 
-		push("жарг", jargon);
+		push("жарг");
 
-		push("obsclite", profanity);
+		push("obsclite");
 		ent = try_parse("obsclite");
-		insert("обсц", ent.position, ent.type);
+		insert("обсц", ent.position);
 
-		//push({ "непрош", "пе", "-", "л", "нп", "reserved", "AOT_разг", "dsbl", "сокр", "парт", "вводн", "местн", "редк", "AOT_ФРАЗ", "AOT_безл", "зват", "разг", "AOT_фраз", "AOT_указат", "буфф" }, weird);
+		//push({ "непрош", "пе", "-", "л", "нп", "reserved", "AOT_разг", "dsbl", "сокр", "парт", "вводн", "местн", "редк", "AOT_ФРАЗ", "AOT_безл", "зват", "разг", "AOT_фраз", "AOT_указат", "буфф" });
 	}
 
 };
@@ -220,7 +191,7 @@ class base_holder {
 					continue;
 
 				token_entity ent = m_p.try_parse(it->str());
-				if (ent.type == none) {
+				if (ent.position == -1) {
 					failed.push_back(it->str());
 				} else {
 					rec.ent.emplace_back(ent);
@@ -246,7 +217,7 @@ class base_holder {
 					", total unique: " << m_p.unique <<
 					": ";
 				for (const auto & a : rec.ent) {
-					std::cout << a.type << "." << a.position << " ";
+					std::cout << a.position << " ";
 				}
 				std::cout << std::endl;
 			}

@@ -34,7 +34,7 @@ class check {
 			std::vector<ioremap::warp::token_entity> ents;
 			for (auto gr = grams.begin(); gr != grams.end(); ++gr) {
 				ioremap::warp::token_entity ent = m_parser.try_parse(*gr);
-				if (ent.type != none)
+				if (ent.position != -1)
 					ents.emplace_back(ent);
 			}
 
@@ -63,7 +63,7 @@ class check {
 				if (matched.size()) {
 					std::cout << *word << ": ";
 					for (auto ent = matched.begin(); ent != matched.end(); ++ent)
-						std::cout << ent->type << "." << ent->position << " ";
+						std::cout << ent->position << " ";
 					std::cout << std::endl;
 				}
 			}
