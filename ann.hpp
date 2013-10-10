@@ -62,14 +62,14 @@ class ann {
 			return lv;
 		}
 
-		void dump_letters(const ioremap::warp::base_holder &records, const std::string &output) {
+		void dump_letters(const ioremap::warp::zparser &records, const std::string &output) {
 			std::ofstream out_letter_map(output, std::ios::trunc | std::ios::binary);
 			for (auto it = records.letters().begin(); it != records.letters().end(); ++it) {
 				out_letter_map << *it << std::endl;
 			}
 		}
 
-		void dump_features(const ioremap::warp::base_holder &records, const std::string &output, int word_size, int ending_size) {
+		void dump_features(const ioremap::warp::zparser &records, const std::string &output, int word_size, int ending_size) {
 			std::vector<std::string> lv;
 			std::copy(records.letters().begin(), records.letters().end(), std::back_inserter(lv));
 

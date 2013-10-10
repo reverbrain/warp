@@ -6,7 +6,7 @@
 
 static void parse(const std::string &input_file, const std::string &output_file)
 {
-	ioremap::warp::base_holder records;
+	ioremap::warp::zparser records;
 	records.parse_file(input_file);
 
 	int ending_size = 5;

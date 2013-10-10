@@ -77,7 +77,7 @@ class check {
 	private:
 		ioremap::warp::ann m_nn;
 		class FANN::neural_net m_ann;
-		ioremap::warp::base_holder m_base;
+		ioremap::warp::zparser m_base;
 		std::vector<std::string> m_lv;
 
 		unsigned int m_input, m_output;

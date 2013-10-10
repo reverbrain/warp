@@ -18,8 +18,8 @@ link_directories(
 	${FANN_LIBRARY_DIRS}
 )
 
-add_executable(warp_zparser zparser.cpp)
-target_link_libraries(warp_zparser
+add_executable(warp_ann_zparser ann_zparser.cpp)
+target_link_libraries(warp_ann_zparser
 	${Boost_LIBRARIES}
 )
 

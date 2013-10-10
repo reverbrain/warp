@@ -118,9 +118,9 @@ struct record {
 	std::vector<parsed_word>	forms;
 };
 
-class base_holder {
+class zparser {
 	public:
-		base_holder() : m_total(0) {
+		zparser() : m_total(0) {
 			boost::locale::generator gen;
 			m_loc = gen("en_US.UTF8");
 		}
