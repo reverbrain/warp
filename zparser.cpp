@@ -6,37 +6,8 @@
 
 static void parse(const std::string &input_file, const std::string &output_file)
 {
-	std::ifstream in(input_file.c_str());
-
 	ioremap::warp::base_holder records;
-	ioremap::warp::timer t;
-	ioremap::warp::timer total;
-
-	std::string line;
-	std::string word;
-
-	long lines = 0;
-	long chunk = 100000;
-	long duration;
-	while (std::getline(in, line)) {
-		if (++lines % chunk == 0) {
-			duration = t.restart();
-			std::cout << "Read and parsed " << lines << " lines, took: " << duration << " msecs, speed: " << chunk * 1000 / duration << " lines/sec" << std::endl;
-		}
-
-		if (line.substr(0, 5) == "@ID: ") {
-			// skip next line - it contains original word
-			if (!std::getline(in, line))
-				break;
-
-			continue;
-		}
-
-		records.parse_dict_string(line);
-	}
-	duration = total.restart();
-	std::cout << "Read and parsed " << lines << " lines, took: " << duration << " msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
-	return;
+	records.parse_file(input_file);
 
 	int ending_size = 5;
 	int word_size = 5 + ending_size;
