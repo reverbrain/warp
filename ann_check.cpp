@@ -8,13 +8,14 @@
 #include <fann_cpp.h>
 
 #include "feature.hpp"
+#include "ann.hpp"
 
 namespace ioremap { namespace warp {
 
 class check {
 	public:
 		check(const std::string &input, const std::string &input_letters) {
-			m_lv = m_base.load_letters(input_letters);
+			m_lv = m_nn.load_letters(input_letters);
 
 			m_ann.create_from_file(input.c_str());
 			if (m_ann.get_errno()) {
@@ -39,7 +40,7 @@ class check {
 			}
 
 			for (auto word = words.begin(); word != words.end(); ++word) {
-				std::vector<fann_type> f = m_base.convert_word<fann_type>(m_lv, *word, m_input);
+				std::vector<fann_type> f = m_nn.convert_word<fann_type>(m_lv, *word, m_input);
 				fann_type *output;
 
 				output = m_ann.run(f.data());
@@ -74,6 +75,7 @@ class check {
 		}
 
 	private:
+		ioremap::warp::ann m_nn;
 		class FANN::neural_net m_ann;
 		ioremap::warp::base_holder m_base;
 		std::vector<std::string> m_lv;

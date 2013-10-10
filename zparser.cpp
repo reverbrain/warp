@@ -2,6 +2,7 @@
 
 #include "feature.hpp"
 #include "timer.hpp"
+#include "ann.hpp"
 
 static void parse(const std::string &input_file, const std::string &output_file)
 {
@@ -40,7 +41,8 @@ static void parse(const std::string &input_file, const std::string &output_file)
 	int ending_size = 5;
 	int word_size = 5 + ending_size;
 
-	records.dump_features(output_file, word_size, ending_size);
+	ioremap::warp::ann ann;
+	ann.dump_features(records, output_file, word_size, ending_size);
 }
 
 int main(int argc, char *argv[])
