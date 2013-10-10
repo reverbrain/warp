@@ -9,15 +9,17 @@ static void parse(const std::string &input_file, const std::string &output_file)
 
 	ioremap::warp::base_holder records;
 	ioremap::warp::timer t;
+	ioremap::warp::timer total;
 
 	std::string line;
 	std::string word;
 
-	int lines = 0;
-	int chunk = 100000;
+	long lines = 0;
+	long chunk = 100000;
+	long duration;
 	while (std::getline(in, line)) {
 		if (++lines % chunk == 0) {
-			long duration = t.restart();
+			duration = t.restart();
 			std::cout << "Read and parsed " << lines << " lines, took: " << duration << " msecs, speed: " << chunk * 1000 / duration << " lines/sec" << std::endl;
 		}
 
@@ -31,7 +33,8 @@ static void parse(const std::string &input_file, const std::string &output_file)
 
 		records.parse_dict_string(line);
 	}
-	std::cout << "Read and parsed " << lines << " lines" << std::endl;
+	duration = total.restart();
+	std::cout << "Read and parsed " << lines << " lines, took: " << duration << " msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
 	return;
 
 	int ending_size = 5;
