@@ -34,3 +34,8 @@ target_link_libraries(warp_ann_check
 	${Boost_LIBRARIES}
 	${FANN_LIBRARIES}
 )
+
+add_executable(warp_trie_test trie.cpp)
+target_link_libraries(warp_trie_test
+	${Boost_LIBRARIES}
+)
