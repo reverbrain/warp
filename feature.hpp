@@ -110,6 +110,11 @@ struct parser {
 struct parsed_word {
 	std::string			ending;
 	std::vector<token_entity>	ent;
+
+	parsed_word() : feature_mask(0ULL) {}
+
+	typedef uint64_t feature_mask_t;
+	feature_mask_t			feature_mask;
 };
 
 struct record {
@@ -195,11 +200,15 @@ class zparser {
 					failed.push_back(it->str());
 				} else {
 					rec.ent.emplace_back(ent);
+					if (ent.position < (int)sizeof(parsed_word::feature_mask_t) * 8)
+						rec.feature_mask |= (parsed_word::feature_mask_t)1 << ent.position;
 				}
 			}
 
 			if (!rec.ent.size())
 				return;
+
+			m_endings[rec.ending].insert(rec.feature_mask);
 
 			std::sort(rec.ent.begin(), rec.ent.end(), token_entity());
 
@@ -248,7 +257,7 @@ class zparser {
 			while (std::getline(in, line)) {
 				if (++lines % chunk == 0) {
 					duration = t.restart();
-					std::cout << "Read and parsed " << lines << " lines, took: " << duration << " msecs, speed: " << chunk * 1000 / duration << " lines/sec" << std::endl;
+					std::cout << "Read and parsed " << lines << " lines, elapsed: " << total.elapsed() << " msecs, speed: " << chunk * 1000 / duration << " lines/sec" << std::endl;
 				}
 
 				if (line.substr(0, 5) == "@ID: ") {
@@ -261,8 +270,18 @@ class zparser {
 
 				parse_dict_string(line);
 			}
-			duration = total.restart();
-			std::cout << "Read and parsed " << lines << " lines, took: " << duration << " msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
+			duration = total.elapsed();
+			std::cout << "Read and parsed " << lines << " lines, elapsed: " << duration << " msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
+
+			std::cout << "Total endings: " << m_endings.size() << std::endl;
+			for (auto & e : m_endings) {
+				std::cout << e.first;
+				for (auto f : e.second) {
+					std::cout << " " << std::hex << f;
+				}
+
+				std::cout << std::endl;
+			}
 		}
 
 		const std::set<std::string> &letters(void) const {
@@ -288,6 +307,7 @@ class zparser {
 		int m_total;
 
 		std::set<std::string> m_letters;
+		std::map<std::string, std::set<parsed_word::feature_mask_t>> m_endings;
 };
 
 
