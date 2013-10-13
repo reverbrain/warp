@@ -6,13 +6,14 @@
 
 static void parse(const std::string &input_file, const std::string &output_file)
 {
+	ioremap::warp::ann ann;
 	ioremap::warp::zparser records;
+	records.set_process(std::bind(&ioremap::warp::ann::process, ann, std::placeholders::_1, std::placeholders::_2));
 	records.parse_file(input_file);
 
 	int ending_size = 5;
 	int word_size = 5 + ending_size;
 
-	ioremap::warp::ann ann;
 	ann.dump_features(records, output_file, word_size, ending_size);
 }
 

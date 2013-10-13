@@ -121,11 +121,18 @@ struct record {
 	std::vector<parsed_word>	forms;
 };
 
+static inline void default_process(const std::string &, const struct parsed_word &) {}
+
 class zparser {
 	public:
-		zparser() : m_total(0) {
+		typedef std::function<void (const std::string &root, const struct parsed_word &rec)> zparser_process;
+		zparser() : m_total(0), m_process(default_process) {
 			boost::locale::generator gen;
 			m_loc = gen("en_US.UTF8");
+		}
+
+		void set_process(const zparser_process &process) {
+			m_process = process;
 		}
 
 		std::vector<std::string> split(const std::string &sentence) {
@@ -208,38 +215,10 @@ class zparser {
 			if (!rec.ent.size())
 				return;
 
-			m_endings[rec.ending].insert(rec.feature_mask);
-
 			std::sort(rec.ent.begin(), rec.ent.end(), token_entity());
-
-			if (0 && failed.size()) {
-				std::cout << token << ": root: " << root <<
-					", ending: " << rec.ending <<
-					", failed: ";
-				for (auto it = failed.begin(); it != failed.end(); ++it)
-					std::cout << *it << " ";
-				std::cout << std::endl;
-			} else if (0) {
-				std::cout << token << ": root: " << root <<
-					", ending: " << rec.ending <<
-					", features: " << rec.ent.size() <<
-					", total unique: " << m_p.unique <<
-					": ";
-				for (const auto & a : rec.ent) {
-					std::cout << a.position << " ";
-				}
-				std::cout << std::endl;
-			}
-
-			m_words[root].forms.emplace_back(rec);
 			m_total++;
 
-			std::string tmp = root + rec.ending;
-			lb::ssegment_index cmap(lb::character, tmp.begin(), tmp.end(), m_loc);
-
-			for (auto it = cmap.begin(), e = cmap.end(); it != e; ++it) {
-				m_letters.insert(it->str());
-			}
+			m_process(root, rec);
 		}
 
 		void parse_file(const std::string &input_file) {
@@ -272,24 +251,6 @@ class zparser {
 			}
 			duration = total.elapsed();
 			std::cout << "Read and parsed " << lines << " lines, elapsed: " << duration << " msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
-
-			std::cout << "Total endings: " << m_endings.size() << std::endl;
-			for (auto & e : m_endings) {
-				std::cout << e.first;
-				for (auto f : e.second) {
-					std::cout << " " << std::hex << f;
-				}
-
-				std::cout << std::endl;
-			}
-		}
-
-		const std::set<std::string> &letters(void) const {
-			return m_letters;
-		}
-
-		const std::map<std::string, record> &words(void) const {
-			return m_words;
 		}
 
 		int parser_features_num(void) const {
@@ -302,12 +263,10 @@ class zparser {
 
 	private:
 		std::locale m_loc;
-		std::map<std::string, record> m_words;
 		parser m_p;
 		int m_total;
 
-		std::set<std::string> m_letters;
-		std::map<std::string, std::set<parsed_word::feature_mask_t>> m_endings;
+		zparser_process m_process;
 };
 
 
