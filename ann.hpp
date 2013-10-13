@@ -24,7 +24,7 @@ class ann {
 			}
 		}
 
-		void process(const std::string &root, const ioremap::warp::parsed_word &rec) {
+		bool process(const std::string &root, const ioremap::warp::parsed_word &rec) {
 			m_endings[rec.ending].insert(rec.feature_mask);
 
 			m_words[root].forms.emplace_back(rec);
@@ -35,6 +35,8 @@ class ann {
 			for (auto it = cmap.begin(), e = cmap.end(); it != e; ++it) {
 				m_letters.insert(it->str());
 			}
+
+			return true;
 		}
 
 		template <typename T>

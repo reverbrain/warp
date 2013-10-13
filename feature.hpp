@@ -121,11 +121,12 @@ struct record {
 	std::vector<parsed_word>	forms;
 };
 
-static inline void default_process(const std::string &, const struct parsed_word &) {}
+static inline bool default_process(const std::string &, const struct parsed_word &) { return false; }
 
 class zparser {
 	public:
-		typedef std::function<void (const std::string &root, const struct parsed_word &rec)> zparser_process;
+		// return false if you want to stop further processing
+		typedef std::function<bool (const std::string &root, const struct parsed_word &rec)> zparser_process;
 		zparser() : m_total(0), m_process(default_process) {
 			boost::locale::generator gen;
 			m_loc = gen("en_US.UTF8");
@@ -147,7 +148,7 @@ class zparser {
 			return ret;
 		}
 
-		void parse_dict_string(const std::string &token_str) {
+		bool parse_dict_string(const std::string &token_str) {
 			std::string token = boost::locale::to_lower(token_str, m_loc);
 
 			lb::ssegment_index wmap(lb::word, token.begin(), token.end(), m_loc);
@@ -213,12 +214,12 @@ class zparser {
 			}
 
 			if (!rec.ent.size())
-				return;
+				return true;
 
 			std::sort(rec.ent.begin(), rec.ent.end(), token_entity());
 			m_total++;
 
-			m_process(root, rec);
+			return m_process(root, rec);
 		}
 
 		void parse_file(const std::string &input_file) {
@@ -250,7 +251,8 @@ class zparser {
 					continue;
 				}
 
-				parse_dict_string(line);
+				if (!parse_dict_string(line))
+					break;
 			}
 			duration = total.elapsed();
 			std::cout << "Read and parsed " << lines << " lines, elapsed: " << duration << " msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
