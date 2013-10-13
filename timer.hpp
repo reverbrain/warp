@@ -15,14 +15,22 @@ public:
 
 	int64_t elapsed() const
 	{
-		return std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - m_last_time).count();
+		int64_t t = std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - m_last_time).count();
+		if (!t)
+			t = 1;
+
+		return t;
 	}
 
 	int64_t restart()
 	{
 		clock::time_point time = clock::now();
 		std::swap(m_last_time, time);
-		return std::chrono::duration_cast<std::chrono::milliseconds>(m_last_time - time).count();
+		int64_t t = std::chrono::duration_cast<std::chrono::milliseconds>(m_last_time - time).count();
+		if (!t)
+			t = 1;
+
+		return t;
 	}
 
 private:
