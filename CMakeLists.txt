@@ -7,15 +7,18 @@ find_package(Boost REQUIRED COMPONENTS system thread locale program_options rege
 
 INCLUDE(cmake/locate_library.cmake)
 LOCATE_LIBRARY(FANN "fann.h" "fann")
+LOCATE_LIBRARY(MSGPACK "msgpack.hpp" "msgpack")
 
 include_directories(${PROJECT_SOURCE_DIR}/include
 	${Boost_INCLUDE_DIRS}
 	${FANN_INCLUDE_DIRS}
+	${MSGPACK_INCLUDE_DIRS}
 )
 
 link_directories(
 	${Boost_LIBRARY_DIRS}
 	${FANN_LIBRARY_DIRS}
+	${MSGPACK_LIBRARY_DIRS}
 )
 
 add_executable(warp_ann_zparser ann_zparser.cpp)
@@ -38,4 +41,10 @@ target_link_libraries(warp_ann_check
 add_executable(warp_trie_test trie.cpp)
 target_link_libraries(warp_trie_test
 	${Boost_LIBRARIES}
+)
+
+add_executable(warp_zpack pack.cpp)
+target_link_libraries(warp_zpack
+	${Boost_LIBRARIES}
+	${MSGPACK_LIBRARIES}
 )
