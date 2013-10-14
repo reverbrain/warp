@@ -150,6 +150,17 @@ class node {
 			return m_data;
 		}
 
+		void add_and_data_append(const letter_layer<D> &ll, int pos, const D &d, node<D> &n) {
+			// put data not only at the end of the word (last node in trie),
+			// but into every node on every level
+			n.append_data(d);
+
+			if (pos + 1 == ll.size()) {
+			} else {
+				n.raw_add(ll, pos + 1, d);
+			}
+		}
+
 		void raw_add(const letter_layer<D> &ll, int pos, const D &d) {
 			auto & l = ll[pos];
 
@@ -157,13 +168,7 @@ class node {
 			if (el == NULL) {
 				node<D> n;
 
-				// put data not only at the end of the word (last node in trie),
-				// but into every node on every level
-				n.append_data(d);
-				if (pos + 1 == ll.size()) {
-				} else {
-					n.raw_add(ll, pos + 1, d);
-				}
+				add_and_data_append(ll, pos, d, n);
 
 				letter<node<D>> tmp(l.string(), n);
 				m_children.insert(tmp);
@@ -171,11 +176,7 @@ class node {
 				return;
 			}
 
-			el->data().append_data(d);
-			if (pos + 1 < ll.size()) {
-				el->data().raw_add(ll, pos + 1, d);
-			} else {
-			}
+			add_and_data_append(ll, pos, d, el->data());
 		}
 
 		std::pair<std::vector<D>, int> raw_lookup(const letter_layer<D> &ll, int pos) {
