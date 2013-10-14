@@ -77,7 +77,7 @@ class unpacker {
 				long duration;
 
 				while (true) {
-					pac.reserve_buffer(4096);
+					pac.reserve_buffer(1024 * 1024);
 					size_t bytes = m_in.readsome(pac.buffer(), pac.buffer_capacity());
 
 					if (!bytes)
