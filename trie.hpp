@@ -137,6 +137,11 @@ class node {
 		letter_layer<node<D>> m_children;
 
 		void append_data(const D &d) {
+			for (auto it = m_data.begin(); it != m_data.end(); ++it) {
+				if (*it == d)
+					return;
+			}
+
 			m_data.push_back(d);
 		}
 
@@ -152,6 +157,8 @@ class node {
 			if (el == NULL) {
 				node<D> n;
 
+				// put data not only at the end of the word (last node in trie),
+				// but into every node on every level
 				n.append_data(d);
 				if (pos + 1 == ll.size()) {
 				} else {
