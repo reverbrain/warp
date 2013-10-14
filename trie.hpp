@@ -61,6 +61,10 @@ class layer {
 			m_layer.push_back(l);
 		}
 
+		void reverse(void) {
+			std::reverse(m_layer.begin(), m_layer.end());
+		}
+
 		L *find(const std::string &str) {
 			auto it = std::lower_bound(m_layer.begin(), m_layer.end(), str);
 			if (it == m_layer.end())
@@ -120,13 +124,22 @@ class node {
 			m_data.push_back(d);
 		}
 
+		void add(const letter_layer<D> &ll, const D &d) {
+			raw_add(ll, 0, d);
+		}
+
+		std::pair<std::vector<D>, int> lookup(const letter_layer<D> &ll) {
+			return raw_lookup(ll, 0);
+		}
+
+	private:
+		std::vector<D> m_data;
+		letter_layer<node<D>> m_children;
+
 		void append_data(const D &d) {
 			m_data.push_back(d);
 		}
 
-		void add(letter_layer<D> &ll, const D &d) {
-			raw_add(ll, 0, d);
-		}
 
 		std::vector<D> &data(void) {
 			return m_data;
@@ -158,7 +171,7 @@ class node {
 			}
 		}
 
-		std::pair<std::vector<D>, int> lookup(const letter_layer<D> &ll, int pos) {
+		std::pair<std::vector<D>, int> raw_lookup(const letter_layer<D> &ll, int pos) {
 			auto & l = ll[pos];
 			auto el = m_children.find(l.string());
 			if (el == NULL) {
@@ -166,14 +179,11 @@ class node {
 			}
 
 			if (pos + 1 == ll.size())
-				return std::make_pair(el->data().data(), pos);
+				return std::make_pair(el->data().data(), pos + 1);
 
-			return el->data().lookup(ll, pos + 1);
+			return el->data().raw_lookup(ll, pos + 1);
 		}
 
-	private:
-		std::vector<D> m_data;
-		letter_layer<node<D>> m_children;
 };
 
 }} // namespace ioremap::trie

@@ -86,9 +86,9 @@ static void check_node(int argc, char *argv[])
 			ll.push_back(l);
 		}
 
-		auto data = root.lookup(lookup, 0);
+		auto data = root.lookup(lookup);
 		for (auto d : data.first) {
-			std::cout << "word: " << tmp << ", pos: " << data.second << ", exact: " << (data.second + 1 == (int)ll.size()) << ", data: " << d << std::endl;
+			std::cout << "word: " << tmp << ", pos: " << data.second << ", exact: " << (data.second == (int)ll.size()) << ", data: " << d << std::endl;
 		}
 	}
 }
