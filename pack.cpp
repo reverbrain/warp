@@ -1,3 +1,4 @@
+#include <boost/locale.hpp>
 #include <boost/program_options.hpp>
 
 #include <fstream>
@@ -8,6 +9,9 @@
 #include <msgpack.hpp>
 
 #include "feature.hpp"
+#include "trie.hpp"
+
+namespace lb = boost::locale::boundary;
 
 namespace ioremap { namespace warp {
 
@@ -62,10 +66,16 @@ class unpacker {
 			m_in.open(input.c_str(), std::ios::binary);
 		}
 
-		void unpack(void) {
+		typedef std::function<bool (const entry &)> unpack_process;
+		void unpack(const unpack_process &process) {
 			msgpack::unpacker pac;
 
 			try {
+				timer t, total;
+				long num = 0;
+				long chunk = 100000;
+				long duration;
+
 				while (true) {
 					pac.reserve_buffer(4096);
 					size_t bytes = m_in.readsome(pac.buffer(), pac.buffer_capacity());
@@ -80,8 +90,26 @@ class unpacker {
 
 						entry e;
 						obj.convert<entry>(&e);
+
+						if (!process(e))
+							return;
+
+						if ((++num % chunk) == 0) {
+							duration = t.restart();
+							std::cout << "Read objects: " << num <<
+								", elapsed time: " << total.elapsed() << " msecs" <<
+								", speed: " << chunk * 1000 / duration << " objs/sec" <<
+								std::endl;
+						}
 					}
 				}
+
+				duration = total.elapsed();
+				std::cout << "Read objects: " << num <<
+					", elapsed time: " << duration << " msecs" <<
+					", speed: " << num * 1000 / duration << " objs/sec" <<
+					std::endl;
+
 			} catch (const std::exception &e) {
 				std::cerr << "Exception: " << e.what() << std::endl;
 			}
@@ -89,6 +117,65 @@ class unpacker {
 
 	private:
 		std::ifstream m_in;
+};
+
+class lex {
+	public:
+		lex() {
+			boost::locale::generator gen;
+			m_loc = gen("en_US.UTF8");
+		}
+
+		void load(const std::string &path) {
+			unpacker unpack(path);
+			unpack.unpack(std::bind(&lex::unpack_process, this, std::placeholders::_1));
+		}
+
+		std::vector<parsed_word::feature_mask_t> lookup(const std::string &word) {
+			auto ll = word2ll(word);
+
+			auto res = m_word.lookup(ll);
+
+			std::string ex = "exact";
+			if (res.second != (int)ll.size())
+				ex = "not exact (" + boost::lexical_cast<std::string>(res.second) + "/" +
+					boost::lexical_cast<std::string>(ll.size()) + ")";
+
+			std::cout << "word: " << word << ", match: " << ex << ": ";
+			for (auto v : res.first) {
+				std::cout << std::hex << "0x" << v << " " << std::dec;
+			}
+			std::cout << std::endl;
+
+			return res.first;
+		}
+
+	private:
+		trie::node<parsed_word::feature_mask_t> m_word;
+
+		typedef ioremap::trie::letter_layer<parsed_word::feature_mask_t> llm_t;
+
+		std::locale m_loc;
+
+		llm_t word2ll(const std::string &word) {
+			llm_t ll;
+
+			lb::ssegment_index cmap(lb::character, word.begin(), word.end(), m_loc);
+			for (auto it = cmap.begin(), e = cmap.end(); it != e; ++it) {
+				ioremap::trie::letter<parsed_word::feature_mask_t> l(it->str(), -1);
+				ll.push_back(l);
+			}
+
+			ll.reverse();
+
+			return ll;
+		}
+
+		bool unpack_process(const entry &e) {
+			m_word.add(word2ll(e.root + e.ending), e.features);
+
+			return true;
+		}
 };
 
 }} // namespace ioremap::warp
@@ -111,7 +198,9 @@ inline ioremap::warp::entry &operator >>(msgpack::object o, ioremap::warp::entry
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1) {
 		std::ostringstream ss;
-		ss << "entry msgpack: type: " << o.type << ", must be: " << msgpack::type::ARRAY << ", size: " << o.via.array.size;
+		ss << "entry msgpack: type: " << o.type <<
+			", must be: " << msgpack::type::ARRAY <<
+			", size: " << o.via.array.size;
 		throw std::runtime_error(ss.str());
 	}
 
@@ -134,7 +223,8 @@ inline ioremap::warp::entry &operator >>(msgpack::object o, ioremap::warp::entry
 	}
 	default: {
 		std::ostringstream ss;
-		ss << "entry msgpack: version mismatch: read: " << version << ", must be: <= " << ioremap::warp::entry::serialization_version;
+		ss << "entry msgpack: version mismatch: read: " << version <<
+			", must be: <= " << ioremap::warp::entry::serialization_version;
 		throw msgpack::type_error();
 	}
 	}
@@ -148,24 +238,36 @@ int main(int argc, char *argv[])
 {
 	namespace bpo = boost::program_options;
 
-	bpo::options_description op("Parser options");
+	bpo::options_description generic("Parser options");
 
 	std::string input, output, msgin;
-	op.add_options()
+	generic.add_options()
 		("help", "This help message")
 		("input", bpo::value<std::string>(&input), "Input Zaliznyak dictionary file")
 		("output", bpo::value<std::string>(&output), "Output msgpack file")
 		("msgpack-input", bpo::value<std::string>(&msgin), "Input msgpack file")
 		;
 
+	bpo::positional_options_description p;
+	p.add("words", -1);
+
+	std::vector<std::string> words;
+	bpo::options_description hidden("Hidden options");
+	hidden.add_options()
+		("words", bpo::value<std::vector<std::string>>(&words), "lookup words")
+	;
+
+	bpo::options_description cmdline_options;
+	cmdline_options.add(generic).add(hidden);
+
 	bpo::variables_map vm;
-	bpo::store(bpo::parse_command_line(argc, argv, op), vm);
+	bpo::store(bpo::command_line_parser(argc, argv).options(cmdline_options).positional(p).run(), vm);
 	bpo::notify(vm);
 
 	namespace iw = ioremap::warp;
 
 	if (!(vm.count("input") && vm.count("output")) && !vm.count("msgpack-input")) {
-		std::cerr << op;
+		std::cerr << generic;
 		return -1;
 	}
 
@@ -177,8 +279,16 @@ int main(int argc, char *argv[])
 	}
 
 	if (vm.count("msgpack-input")) {
-		iw::unpacker unpack(msgin);
-		unpack.unpack();
+		iw::lex l;
+		l.load(msgin);
+
+		l.lookup("привет");
+		l.lookup("упячка");
+		l.lookup("быркалка");
+		l.lookup("здоровец");
+
+		for (auto & w : words)
+			l.lookup(w);
 	}
 
 	return 0;
