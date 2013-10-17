@@ -25,7 +25,7 @@ class ann {
 		}
 
 		bool process(const std::string &root, const ioremap::warp::parsed_word &rec) {
-			m_endings[rec.ending].insert(rec.feature_mask);
+			m_endings[rec.ending].insert(rec.features);
 
 			m_words[root].forms.emplace_back(rec);
 
@@ -147,7 +147,7 @@ class ann {
 
 		std::map<std::string, ioremap::warp::record> m_words;
 		std::set<std::string> m_letters;
-		std::map<std::string, std::set<parsed_word::feature_mask_t>> m_endings;
+		std::map<std::string, std::set<parsed_word::feature_mask>> m_endings;
 
 };
 

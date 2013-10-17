@@ -9,7 +9,7 @@ namespace lb = boost::locale::boundary;
 namespace ioremap { namespace warp {
 
 struct ef {
-	parsed_word::feature_mask_t	features;
+	parsed_word::feature_mask	features;
 	int				ending_len;
 
 	bool operator==(const struct ef &ef) {

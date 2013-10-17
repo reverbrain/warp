@@ -111,10 +111,10 @@ struct parsed_word {
 	std::string			ending;
 	std::vector<token_entity>	ent;
 
-	parsed_word() : feature_mask(0ULL) {}
+	parsed_word() : features(0ULL) {}
 
-	typedef uint64_t feature_mask_t;
-	feature_mask_t			feature_mask;
+	typedef uint64_t feature_mask;
+	feature_mask	features;
 };
 
 struct record {
@@ -208,8 +208,8 @@ class zparser {
 					failed.push_back(it->str());
 				} else {
 					rec.ent.emplace_back(ent);
-					if (ent.position < (int)sizeof(parsed_word::feature_mask_t) * 8)
-						rec.feature_mask |= (parsed_word::feature_mask_t)1 << ent.position;
+					if (ent.position < (int)sizeof(parsed_word::feature_mask) * 8)
+						rec.features |= (parsed_word::feature_mask)1 << ent.position;
 				}
 			}
 

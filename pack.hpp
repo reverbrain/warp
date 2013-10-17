@@ -17,7 +17,7 @@ struct entry {
 
 	std::string root;
 	std::string ending;
-	parsed_word::feature_mask_t features;
+	parsed_word::feature_mask features;
 
 	entry() : features(0ULL) {}
 };
@@ -34,13 +34,13 @@ class packer {
 		packer(const packer &z) = delete;
 
 		bool zprocess(const std::string &root, const struct parsed_word &rec) {
-			return pack(root, rec.ending, rec.feature_mask);
+			return pack(root, rec.ending, rec.features);
 		}
 
 	private:
 		std::ofstream m_out;
 
-		bool pack(const std::string &root, const std::string &ending, const parsed_word::feature_mask_t features) {
+		bool pack(const std::string &root, const std::string &ending, const parsed_word::feature_mask features) {
 			msgpack::sbuffer buf;
 			msgpack::packer<msgpack::sbuffer> pk(&buf);
 
