@@ -153,26 +153,24 @@ class lex {
 	private:
 		trie::node<parsed_word::feature_mask_t> m_word;
 
-		typedef ioremap::trie::letter_layer<parsed_word::feature_mask_t> llm_t;
-
 		std::locale m_loc;
 
-		llm_t word2ll(const std::string &word) {
-			llm_t ll;
+		trie::letters word2ll(const std::string &word) {
+			trie::letters ll;
 
 			lb::ssegment_index cmap(lb::character, word.begin(), word.end(), m_loc);
 			for (auto it = cmap.begin(), e = cmap.end(); it != e; ++it) {
-				ioremap::trie::letter<parsed_word::feature_mask_t> l(it->str(), -1);
-				ll.push_back(l);
+				ll.emplace_back(std::move(it->str()));
 			}
 
-			ll.reverse();
+			std::reverse(ll.begin(), ll.end());
 
 			return ll;
 		}
 
 		bool unpack_process(const entry &e) {
-			m_word.add(word2ll(e.root + e.ending), e.features);
+			trie::letters ll = word2ll(e.root + e.ending);
+			m_word.add(ll, e.features);
 
 			return true;
 		}

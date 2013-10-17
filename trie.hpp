@@ -61,6 +61,10 @@ class layer {
 			m_layer.push_back(l);
 		}
 
+		void emplace_back(const L &&l) {
+			m_layer.emplace_back(l);
+		}
+
 		void reverse(void) {
 			std::reverse(m_layer.begin(), m_layer.end());
 		}
@@ -115,6 +119,7 @@ class layer {
 };
 
 template<class X> using letter_layer = layer<letter<X>>;
+typedef std::vector<std::string> letters;
 
 template <typename D>
 class node {
@@ -124,11 +129,11 @@ class node {
 			m_data.push_back(d);
 		}
 
-		void add(const letter_layer<D> &ll, const D &d) {
+		void add(const letters &ll, const D &d) {
 			raw_add(ll, 0, d);
 		}
 
-		std::pair<std::vector<D>, int> lookup(const letter_layer<D> &ll) {
+		std::pair<std::vector<D>, int> lookup(const letters &ll) {
 			return raw_lookup(ll, 0);
 		}
 
@@ -150,7 +155,7 @@ class node {
 			return m_data;
 		}
 
-		void add_and_data_append(const letter_layer<D> &ll, int pos, const D &d, node<D> &n) {
+		void add_and_data_append(const letters &ll, int pos, const D &d, node<D> &n) {
 			// put data not only at the end of the word (last node in trie),
 			// but into every node on every level
 			n.append_data(d);
@@ -161,16 +166,16 @@ class node {
 			}
 		}
 
-		void raw_add(const letter_layer<D> &ll, int pos, const D &d) {
-			auto & l = ll[pos];
+		void raw_add(const letters &ll, int pos, const D &d) {
+			const auto & l = ll[pos];
 
-			auto el = m_children.find(l.string());
+			auto el = m_children.find(l);
 			if (el == NULL) {
 				node<D> n;
 
 				add_and_data_append(ll, pos, d, n);
 
-				letter<node<D>> tmp(l.string(), n);
+				letter<node<D>> tmp(l, n);
 				m_children.insert(tmp);
 
 				return;
@@ -179,9 +184,9 @@ class node {
 			add_and_data_append(ll, pos, d, el->data());
 		}
 
-		std::pair<std::vector<D>, int> raw_lookup(const letter_layer<D> &ll, int pos) {
-			auto & l = ll[pos];
-			auto el = m_children.find(l.string());
+		std::pair<std::vector<D>, int> raw_lookup(const letters &ll, int pos) {
+			const auto & l = ll[pos];
+			auto el = m_children.find(l);
 			if (el == NULL) {
 				return std::make_pair(m_data, pos);
 			}
@@ -191,7 +196,6 @@ class node {
 
 			return el->data().raw_lookup(ll, pos + 1);
 		}
-
 };
 
 }} // namespace ioremap::trie

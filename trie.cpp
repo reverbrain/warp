@@ -58,12 +58,11 @@ static void check_node(int argc, char *argv[])
 	for (int i = 0; i < argc; ++i) {
 		std::string tmp = argv[i];
 
-		ioremap::trie::letter_layer<int> ll;
+		ioremap::trie::letters ll;
 
 		lb::ssegment_index cmap(lb::character, tmp.begin(), tmp.end(), m_loc);
 		for (auto it = cmap.begin(), e = cmap.end(); it != e; ++it) {
-			ioremap::trie::letter<int> l(it->str(), -1);
-			ll.push_back(l);
+			ll.push_back(it->str());
 		}
 
 		root.add(ll, idx);
@@ -74,16 +73,14 @@ static void check_node(int argc, char *argv[])
 	for (int i = 0; i < argc; ++i) {
 		std::string tmp = argv[i];
 
-		ioremap::trie::letter_layer<int> lookup;
-		ioremap::trie::letter_layer<int> ll;
+		ioremap::trie::letters lookup;
+		ioremap::trie::letters ll;
 
 		lb::ssegment_index cmap(lb::character, tmp.begin(), tmp.end(), m_loc);
 		for (auto it = cmap.begin(), e = cmap.end(); it != e; ++it) {
-			ioremap::trie::letter<int> l(it->str(), -1);
-
 			if (lookup.size() < 1)
-				lookup.push_back(l);
-			ll.push_back(l);
+				lookup.push_back(it->str());
+			ll.push_back(it->str());
 		}
 
 		auto data = root.lookup(lookup);
