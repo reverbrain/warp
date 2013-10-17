@@ -56,10 +56,11 @@ class lex {
 
 		trie::letters word2ll(const std::string &word) {
 			trie::letters ll;
+			ll.reserve(word.size());
 
 			lb::ssegment_index cmap(lb::character, word.begin(), word.end(), m_loc);
 			for (auto it = cmap.begin(), e = cmap.end(); it != e; ++it) {
-				ll.emplace_back(std::move(it->str()));
+				ll.emplace_back(it->str());
 			}
 
 			std::reverse(ll.begin(), ll.end());
