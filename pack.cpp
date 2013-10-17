@@ -119,6 +119,16 @@ class unpacker {
 		std::ifstream m_in;
 };
 
+struct ef {
+	parsed_word::feature_mask_t	features;
+	int				ending_len;
+
+	bool operator==(const struct ef &ef) {
+		return features == ef.features && ending_len == ef.ending_len;
+	}
+};
+
+
 class lex {
 	public:
 		lex() {
@@ -131,7 +141,7 @@ class lex {
 			unpack.unpack(std::bind(&lex::unpack_process, this, std::placeholders::_1));
 		}
 
-		std::vector<parsed_word::feature_mask_t> lookup(const std::string &word) {
+		std::vector<ef> lookup(const std::string &word) {
 			auto ll = word2ll(word);
 
 			auto res = m_word.lookup(ll);
@@ -143,7 +153,7 @@ class lex {
 
 			std::cout << "word: " << word << ", match: " << ex << ": ";
 			for (auto v : res.first) {
-				std::cout << std::hex << "0x" << v << " " << std::dec;
+				std::cout << v.ending_len << "," << std::hex << "0x" << v.features << " " << std::dec;
 			}
 			std::cout << std::endl;
 
@@ -151,7 +161,7 @@ class lex {
 		}
 
 	private:
-		trie::node<parsed_word::feature_mask_t> m_word;
+		trie::node<ef> m_word;
 
 		std::locale m_loc;
 
@@ -169,8 +179,15 @@ class lex {
 		}
 
 		bool unpack_process(const entry &e) {
-			trie::letters ll = word2ll(e.root + e.ending);
-			m_word.add(ll, e.features);
+			trie::letters root = word2ll(e.root);
+			trie::letters ending = word2ll(e.ending);
+
+			struct ef ef;
+			ef.features = e.features;
+			ef.ending_len = ending.size();
+
+			ending.insert(ending.end(), root.begin(), root.end());
+			m_word.add(ending, ef);
 
 			return true;
 		}
