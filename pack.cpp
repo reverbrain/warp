@@ -282,11 +282,6 @@ int main(int argc, char *argv[])
 		iw::lex l;
 		l.load(msgin);
 
-		l.lookup("привет");
-		l.lookup("упячка");
-		l.lookup("быркалка");
-		l.lookup("здоровец");
-
 		for (auto & w : words)
 			l.lookup(w);
 	}
