@@ -30,6 +30,47 @@ class lex {
 			unpack.unpack(std::bind(&lex::unpack_process, this, std::placeholders::_1));
 		}
 
+		std::vector<int> grammar(const std::vector<parsed_word::feature_mask> &gfeat, const std::vector<std::string> &words) {
+			// this is actually substring search, but I do not care about more optimized algorithms,
+			// since grammatics are supposed to be rather small
+
+			std::vector<int> gram_positions;
+
+			int gfeat_pos = 0;
+			for (auto word = words.begin(); word != words.end();) {
+				auto lres = m_word.lookup(word2ll(*word));
+
+				if (!found(gfeat[gfeat_pos], lres.first)) {
+					// try next word if the first grammar entry doesn't match
+					if (gfeat_pos == 0) {
+						++word;
+						continue;
+					}
+
+					gfeat_pos = 0;
+
+					// do not increment word - try the same word from the beginning of the grammar
+					// if failed - try next word
+					if (!found(gfeat[gfeat_pos], lres.first)) {
+						++word;
+						continue;
+					}
+				}
+
+				++gfeat_pos;
+
+				// whole grammar has been found
+				if (gfeat_pos == (int)gfeat.size()) {
+					gram_positions.push_back(word - words.begin());
+					gfeat_pos = 0;
+				}
+
+				++word;
+			}
+
+			return gram_positions;
+		}
+
 		std::vector<ef> lookup(const std::string &word) {
 			auto ll = word2ll(word);
 
@@ -81,6 +122,16 @@ class lex {
 
 			return true;
 		}
+
+		bool found(const parsed_word::feature_mask &mask, const std::vector<ef> &features) {
+			for (auto fres = features.begin(); fres != features.end(); ++fres) {
+				if (mask == fres->features)
+					return true;
+			}
+
+			return false;
+		}
+
 };
 
 }} // namespace ioremap::warp
