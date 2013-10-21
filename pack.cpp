@@ -15,6 +15,8 @@ struct ef {
 	bool operator==(const struct ef &ef) {
 		return features == ef.features && ending_len == ef.ending_len;
 	}
+
+	ef() : features(0ULL), ending_len(0) {}
 };
 
 
@@ -31,41 +33,44 @@ class lex {
 		}
 
 		std::vector<int> grammar(const std::vector<parsed_word::feature_mask> &gfeat, const std::vector<std::string> &words) {
-			// this is actually substring search, but I do not care about more optimized algorithms,
+			// this is actually substring search, but I do not care about more optimized algorithms for now,
 			// since grammatics are supposed to be rather small
 
 			std::vector<int> gram_positions;
 
 			int gfeat_pos = 0;
+			auto gram_start = words.begin();
 			for (auto word = words.begin(); word != words.end();) {
 				auto lres = m_word.lookup(word2ll(*word));
 
-				if (!found(gfeat[gfeat_pos], lres.first)) {
+				ef eftmp = found(gfeat[gfeat_pos], lres.first);
+				if (!eftmp.features) {
 					// try next word if the first grammar entry doesn't match
 					if (gfeat_pos == 0) {
 						++word;
+						++gram_start;
 						continue;
 					}
 
 					gfeat_pos = 0;
-
-					// do not increment word - try the same word from the beginning of the grammar
-					// if failed - try next word
-					if (!found(gfeat[gfeat_pos], lres.first)) {
-						++word;
-						continue;
-					}
+					++gram_start;
+					word = gram_start;
+					continue;
 				}
 
 				++gfeat_pos;
 
-				// whole grammar has been found
-				if (gfeat_pos == (int)gfeat.size()) {
-					gram_positions.push_back(word - words.begin());
-					gfeat_pos = 0;
+				if (gfeat_pos != (int)gfeat.size()) {
+					++word;
+					continue;
 				}
 
+				// whole grammar has been found
+				gram_positions.push_back(gram_start - words.begin());
+				gfeat_pos = 0;
+
 				++word;
+				gram_start = word;
 			}
 
 			return gram_positions;
@@ -123,13 +128,35 @@ class lex {
 			return true;
 		}
 
-		bool found(const parsed_word::feature_mask &mask, const std::vector<ef> &features) {
-			for (auto fres = features.begin(); fres != features.end(); ++fres) {
-				if (mask == fres->features)
-					return true;
+		int bits_set(parsed_word::feature_mask tmp) {
+			int pos;
+			int count = 0;
+			while ((pos = ffsll(tmp)) != 0) {
+				tmp >>= pos;
+				count++;
 			}
 
-			return false;
+			return count;
+		}
+
+		ef found(const parsed_word::feature_mask &mask, const std::vector<ef> &features) {
+			int request_max_count = bits_set(mask) / 2;
+			int max_count = 0;
+
+			ef max_ef;
+			for (auto fres = features.begin(); fres != features.end(); ++fres) {
+				int count = bits_set(mask & fres->features);
+
+				if (count > max_count) {
+					max_ef = *fres;
+					max_count = count;
+				}
+			}
+
+			if (max_count > request_max_count)
+				return max_ef;
+
+			return ef();
 		}
 
 };
