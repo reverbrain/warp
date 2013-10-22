@@ -29,6 +29,8 @@ class lex {
 			m_loc = gen("en_US.UTF8");
 		}
 
+		lex(const std::locale &loc) : m_loc(loc) {}
+
 		void load(const std::string &path) {
 			unpacker unpack(path);
 			unpack.unpack(std::bind(&lex::unpack_process, this, std::placeholders::_1));
@@ -113,6 +115,28 @@ class lex {
 			}
 
 			return gram_positions;
+		}
+
+		std::string root(const std::string &word) {
+			auto ll = word2ll(word);
+
+			auto res = m_word.lookup(ll);
+
+			if (res.first.size()) {
+				std::ostringstream ss;
+
+				int count = ll.size() - res.first[0].ending_len;
+				for (auto l = ll.rbegin(); l != ll.rend(); ++l) {
+					ss << *l;
+
+					if (--count == 0)
+						break;
+				}
+
+				return ss.str();
+			}
+
+			return word;
 		}
 
 		std::vector<ef> lookup(const std::string &word) {
