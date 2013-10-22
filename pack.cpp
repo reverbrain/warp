@@ -32,6 +32,32 @@ class lex {
 			unpack.unpack(std::bind(&lex::unpack_process, this, std::placeholders::_1));
 		}
 
+		std::vector<parsed_word::feature_mask> generate(const std::vector<std::string> &grams) {
+			std::vector<parsed_word::feature_mask> ret;
+
+			parser p;
+
+			for (auto gram = grams.begin(); gram != grams.end(); ++gram) {
+				lb::ssegment_index wmap(lb::word, gram->begin(), gram->end(), m_loc);
+				wmap.rule(lb::word_any);
+
+				parsed_word rec;
+				for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
+					token_entity ent = p.try_parse(it->str());
+					if (ent.position != -1) {
+						if (ent.position < (int)sizeof(parsed_word::feature_mask) * 8)
+							rec.features |= (parsed_word::feature_mask)1 << ent.position;
+						rec.ent.emplace_back(ent);
+					}
+				}
+
+				std::cout << *gram << ": 0x" << std::hex << rec.features << std::dec << std::endl;
+				ret.push_back(rec.features);
+			}
+
+			return ret;
+		}
+
 		std::vector<int> grammar(const std::vector<parsed_word::feature_mask> &gfeat, const std::vector<std::string> &words) {
 			// this is actually substring search, but I do not care about more optimized algorithms for now,
 			// since grammatics are supposed to be rather small
@@ -43,18 +69,25 @@ class lex {
 			for (auto word = words.begin(); word != words.end();) {
 				auto lres = m_word.lookup(word2ll(*word));
 
+				std::cout << "word: " << *word << ", grammar position: " << gfeat_pos << ", grammar-start: " << *gram_start << ", match-to: " << std::hex;
+				for (auto gw : lres.first)
+					std::cout << "0x" << gw.features << " ";
+				std::cout << std::dec << std::endl;
+
 				ef eftmp = found(gfeat[gfeat_pos], lres.first);
 				if (!eftmp.features) {
 					// try next word if the first grammar entry doesn't match
 					if (gfeat_pos == 0) {
 						++word;
 						++gram_start;
+						std::cout << std::endl;
 						continue;
 					}
 
 					gfeat_pos = 0;
 					++gram_start;
 					word = gram_start;
+					std::cout << std::endl;
 					continue;
 				}
 
@@ -140,7 +173,7 @@ class lex {
 		}
 
 		ef found(const parsed_word::feature_mask &mask, const std::vector<ef> &features) {
-			int request_max_count = bits_set(mask) / 2;
+			int request_max_count = bits_set(mask);
 			int max_count = 0;
 
 			ef max_ef;
@@ -153,7 +186,10 @@ class lex {
 				}
 			}
 
-			if (max_count > request_max_count)
+			std::cout << "requested mask: 0x" << std::hex << mask << ", requested bits: " << std::dec << request_max_count <<
+				", best-match: 0x" << std::hex << max_ef.features << ", bits-intersection: " << std::dec << max_count << std::endl;
+
+			if (max_count >= request_max_count)
 				return max_ef;
 
 			return ef();
@@ -169,12 +205,13 @@ int main(int argc, char *argv[])
 
 	bpo::options_description generic("Parser options");
 
-	std::string input, output, msgin;
+	std::string input, output, msgin, gram;
 	generic.add_options()
 		("help", "This help message")
 		("input", bpo::value<std::string>(&input), "Input Zaliznyak dictionary file")
 		("output", bpo::value<std::string>(&output), "Output msgpack file")
 		("msgpack-input", bpo::value<std::string>(&msgin), "Input msgpack file")
+		("grammar", bpo::value<std::string>(&gram), "Grammar string suitable for ioremap::warp::parser, space separates single word descriptions")
 		;
 
 	bpo::positional_options_description p;
@@ -211,8 +248,24 @@ int main(int argc, char *argv[])
 		iw::lex l;
 		l.load(msgin);
 
-		for (auto & w : words)
-			l.lookup(w);
+		if (!vm.count("grammar")) {
+			for (auto & w : words)
+				l.lookup(w);
+		} else {
+			std::vector<std::string> tokens;
+			std::istringstream iss(gram);
+			std::copy(std::istream_iterator<std::string>(iss), std::istream_iterator<std::string>(), std::back_inserter<std::vector<std::string>>(tokens));
+
+			std::vector<iw::parsed_word::feature_mask> vgram = l.generate(tokens);
+
+			for (auto pos : l.grammar(vgram, words)) {
+				for (size_t i = 0; i < vgram.size(); ++i) {
+					std::cout << words[i + pos] << " ";
+				}
+
+				std::cout << std::endl;
+			}
+		}
 	}
 
 	return 0;
