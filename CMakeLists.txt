@@ -48,3 +48,8 @@ target_link_libraries(warp_zpack
 	${Boost_LIBRARIES}
 	${MSGPACK_LIBRARIES}
 )
+
+FILE(GLOB headers
+	"${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
+)
+install(FILES ${headers} DESTINATION include/warp)
