@@ -13,7 +13,9 @@
 namespace ioremap { namespace warp {
 
 struct entry {
-	static const int serialization_version;
+	enum {
+		serialization_version = 1
+	};
 
 	std::string root;
 	std::string ending;
@@ -21,8 +23,6 @@ struct entry {
 
 	entry() : features(0ULL) {}
 };
-
-const int entry::serialization_version = 1;
 
 class packer {
 	public:
@@ -45,7 +45,7 @@ class packer {
 			msgpack::packer<msgpack::sbuffer> pk(&buf);
 
 			pk.pack_array(4);
-			pk.pack(entry::serialization_version);
+			pk.pack((int)entry::serialization_version);
 			pk.pack(root);
 			pk.pack(ending);
 			pk.pack(features);
