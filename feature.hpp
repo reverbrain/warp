@@ -148,8 +148,8 @@ class zparser {
 			return ret;
 		}
 
-		bool parse_dict_string(const std::string &token_str) {
-			std::string token = boost::locale::to_lower(token_str, m_loc);
+		bool parse_dict_string(const std::string &token) {
+			//std::string token = boost::locale::to_lower(token_str, m_loc);
 
 			lb::ssegment_index wmap(lb::word, token.begin(), token.end(), m_loc);
 			wmap.rule(lb::word_any | lb::word_none);
@@ -167,7 +167,7 @@ class zparser {
 				if (it->str() == "[") {
 					if (++it == e)
 						break;
-					root = it->str();
+					root = boost::locale::to_lower(it->str(), m_loc);
 
 					if (++it == e)
 						break;
@@ -207,9 +207,9 @@ class zparser {
 				if (ent.position == -1) {
 					failed.push_back(it->str());
 				} else {
-					rec.ent.emplace_back(ent);
 					if (ent.position < (int)sizeof(parsed_word::feature_mask) * 8)
 						rec.features |= (parsed_word::feature_mask)1 << ent.position;
+					rec.ent.emplace_back(ent);
 				}
 			}
 
