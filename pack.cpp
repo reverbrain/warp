@@ -14,7 +14,8 @@ int main(int argc, char *argv[])
 		("input", bpo::value<std::string>(&input), "Input Zaliznyak dictionary file")
 		("output", bpo::value<std::string>(&output), "Output msgpack file")
 		("msgpack-input", bpo::value<std::string>(&msgin), "Input msgpack file")
-		("grammar", bpo::value<std::string>(&gram), "Grammar string suitable for ioremap::warp::parser, space separates single word descriptions")
+		("grammar", bpo::value<std::string>(&gram), "Grammar string suitable for ioremap::warp::parser, "
+		 "space separates single word descriptions, '-' used to separate 'negative' features: S,им,мн-сокр,кр")
 		;
 
 	bpo::positional_options_description p;
