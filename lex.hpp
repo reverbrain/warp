@@ -24,6 +24,12 @@ struct ef {
 	ef() : features(0ULL), ending_len(0) {}
 };
 
+struct grammar {
+	parsed_word::feature_mask	features;
+	parsed_word::feature_mask	negative;
+
+	grammar() : features(0ULL), negative(0ULL) {}
+};
 
 class lex {
 	public:
@@ -39,34 +45,43 @@ class lex {
 			unpack.unpack(std::bind(&lex::unpack_process, this, std::placeholders::_1));
 		}
 
-		std::vector<parsed_word::feature_mask> generate(const std::vector<std::string> &grams) {
-			std::vector<parsed_word::feature_mask> ret;
+		std::vector<grammar> generate(const std::vector<std::string> &grams) {
+			std::vector<grammar> ret;
 
 			parser p;
 
 			for (auto gram = grams.begin(); gram != grams.end(); ++gram) {
 				lb::ssegment_index wmap(lb::word, gram->begin(), gram->end(), m_loc);
-				wmap.rule(lb::word_any);
+				wmap.rule(lb::word_any | lb::word_none);
 
-				parsed_word rec;
+				grammar tmp;
+				bool negative = false;
 				for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
+					if (it->rule() & lb::word_none) {
+						if (it->str() == "-")
+							negative = true;
+						continue;
+					}
+
 					token_entity ent = p.try_parse(it->str());
 					if (ent.position != -1) {
-						if (ent.position < (int)sizeof(parsed_word::feature_mask) * 8)
-							rec.features |= (parsed_word::feature_mask)1 << ent.position;
-						rec.ent.emplace_back(ent);
+						if (ent.position < (int)sizeof(parsed_word::feature_mask) * 8) {
+							if (negative)
+								tmp.negative |= (parsed_word::feature_mask)1 << ent.position;
+							else
+								tmp.features |= (parsed_word::feature_mask)1 << ent.position;
+						}
 					}
 				}
 
-				std::cout << *gram << ": 0x" << std::hex << rec.features << std::dec << std::endl;
-				ret.push_back(rec.features);
+				std::cout << *gram << ": features: 0x" << std::hex << tmp.features << ", negative: " << tmp.negative << std::dec << std::endl;
+				ret.push_back(tmp);
 			}
 
 			return ret;
 		}
 
-		std::vector<int> grammar(const std::vector<parsed_word::feature_mask> &gfeat,
-				const std::vector<std::string> &words) {
+		std::vector<int> grammar_deduction(const std::vector<grammar> &gfeat, const std::vector<std::string> &words) {
 			// this is actually substring search, but I do not care about more optimized
 			// algorithms for now, since grammatics are supposed to be rather small
 
@@ -202,13 +217,16 @@ class lex {
 			return count;
 		}
 
-		ef found(const parsed_word::feature_mask &mask, const std::vector<ef> &features) {
-			int request_max_count = bits_set(mask);
+		ef found(const grammar &mask, const std::vector<ef> &features) {
+			int request_max_count = bits_set(mask.features);
 			int max_count = 0;
 
 			ef max_ef;
 			for (auto fres = features.begin(); fres != features.end(); ++fres) {
-				int count = bits_set(mask & fres->features);
+				if (mask.negative & fres->features)
+					continue;
+
+				int count = bits_set(mask.features & fres->features);
 
 				if (count > max_count) {
 					max_ef = *fres;
@@ -216,7 +234,8 @@ class lex {
 				}
 			}
 #if 0
-			std::cout << "requested mask: 0x" << std::hex << mask <<
+			std::cout << "requested mask: 0x" << std::hex << mask.features <<
+				", negative: 0x" << mask.negative <<
 				", requested bits: " << std::dec << request_max_count <<
 				", best-match: 0x" << std::hex << max_ef.features <<
 				", bits-intersection: " << std::dec << max_count <<

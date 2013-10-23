@@ -59,9 +59,9 @@ int main(int argc, char *argv[])
 			std::istringstream iss(gram);
 			std::copy(std::istream_iterator<std::string>(iss), std::istream_iterator<std::string>(), std::back_inserter<std::vector<std::string>>(tokens));
 
-			std::vector<iw::parsed_word::feature_mask> vgram = l.generate(tokens);
+			std::vector<iw::grammar> vgram = l.generate(tokens);
 
-			for (auto pos : l.grammar(vgram, words)) {
+			for (auto pos : l.grammar_deduction(vgram, words)) {
 				for (size_t i = 0; i < vgram.size(); ++i) {
 					std::cout << words[i + pos] << " ";
 				}
