@@ -69,11 +69,11 @@ struct parser {
 		push({ "им", "род", "дат", "вин", "твор", "пр" });
 		push({ std::string("ед"), "мн" });
 		push({ std::string("неод"), "од" });
-		//push({ std::string("полн"), "кр" });
+		push({ std::string("полн"), "кр" });
 		push({ "муж", "жен", "сред", "мж" });
-		//push("устар", oldness);
-		//push({ std::string("прич"), "деепр" });
-		//push({ std::string("действ"), "страд" });
+		push("устар");
+		push({ std::string("прич"), "деепр" });
+		push({ std::string("действ"), "страд" });
 		push({ "имя", "отч", "фам" });
 		push({ "S", "A", "V", "PART", "PR", "CONJ", "INTJ", "ADV", "PRDK", "SPRO", "COM", "APRO", "ANUM" });
 
@@ -85,10 +85,10 @@ struct parser {
 
 		push({ "наст", "прош", "буд" });
 		push({ "1", "2", "3" });
-		//push({ std::string("сов"), "несов" });
-		//push({ "сосл", "пов", "изъяв" });
-		//push("гео", location);
-		//push("орг", organization);
+		push({ std::string("сов"), "несов" });
+		push({ "сосл", "пов", "изъяв" });
+		push("гео");
+		push("орг");
 		push({ std::string("срав"), "прев" });
 		push("инф");
 
@@ -102,7 +102,12 @@ struct parser {
 		ent = try_parse("obsclite");
 		insert("обсц", ent.position);
 
-		//push({ "непрош", "пе", "-", "л", "нп", "reserved", "AOT_разг", "dsbl", "сокр", "парт", "вводн", "местн", "редк", "AOT_ФРАЗ", "AOT_безл", "зват", "разг", "AOT_фраз", "AOT_указат", "буфф" });
+		push("weired");
+		ent = try_parse("weired");
+		for (auto w : { "непрош", "пе", "-", "л", "нп", "reserved", "AOT_разг", "dsbl", "сокр", "парт", "вводн", "местн",
+				"редк", "AOT_ФРАЗ", "AOT_безл", "зват", "разг", "AOT_фраз", "AOT_указат", "буфф" }) {
+			insert(w, ent.position);
+		}
 	}
 
 };
