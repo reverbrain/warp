@@ -99,7 +99,7 @@ class layer {
 			return ret;
 		}
 
-		const L &operator [](size_t index) const {
+		L &operator [](size_t index) {
 			return m_layer.at(index);
 		}
 
@@ -133,34 +133,36 @@ class node {
 			raw_add(ll, 0, d);
 		}
 
-		std::pair<std::vector<D>, int> lookup(const letters &ll) {
-			return raw_lookup(ll, 0);
+		std::vector<D> lookup(const letters &ll) {
+			std::set<D> tmp = raw_lookup(ll, 0);
+			std::vector<D> ret;
+			ret.reserve(tmp.size());
+
+			for (auto & t : tmp)
+				ret.push_back(t);
+
+			return ret;
 		}
 
 	private:
-		std::vector<D> m_data;
+		std::set<D> m_data;
 		letter_layer<node<D>> m_children;
 
 		void append_data(const D &d) {
-			for (auto it = m_data.begin(); it != m_data.end(); ++it) {
-				if (*it == d)
-					return;
-			}
-
-			m_data.push_back(d);
+			m_data.insert(d);
 		}
 
 
-		std::vector<D> &data(void) {
+		std::set<D> &data(void) {
 			return m_data;
 		}
 
 		void add_and_data_append(const letters &ll, int pos, const D &d, node<D> &n) {
 			// put data not only at the end of the word (last node in trie),
 			// but into every node on every level
-			n.append_data(d);
 
 			if (pos + 1 == ll.size()) {
+				n.append_data(d);
 			} else {
 				n.raw_add(ll, pos + 1, d);
 			}
@@ -184,15 +186,37 @@ class node {
 			add_and_data_append(ll, pos, d, el->data());
 		}
 
-		std::pair<std::vector<D>, int> raw_lookup(const letters &ll, int pos) {
+		std::set<D> rest(bool self) {
+			std::set<D> ret;
+
+			if (self)
+				ret = m_data;
+
+			for (int i = 0; i < m_children.size(); ++i) {
+				for (auto & t : m_children[i].data().rest(true))
+					ret.insert(t);
+			}
+
+			return ret;
+		}
+
+		std::set<D> raw_lookup(const letters &ll, int pos) {
 			const auto & l = ll[pos];
 			auto el = m_children.find(l);
 			if (el == NULL) {
-				return std::make_pair(m_data, pos);
+				if (pos <= 1)
+					return std::set<D>();
+
+				return rest(false);
 			}
 
-			if (pos + 1 == ll.size())
-				return std::make_pair(el->data().data(), pos + 1);
+			if (pos + 1 == ll.size()) {
+				auto tmp = el->data().data();
+				if (tmp.size() == 0)
+					return el->data().rest(true);
+
+				return tmp;
+			}
 
 			return el->data().raw_lookup(ll, pos + 1);
 		}

@@ -15,7 +15,10 @@ struct ef {
 	int				ending_len;
 
 	bool operator==(const struct ef &ef) {
-		return features == ef.features && ending_len == ef.ending_len;
+		return features == ef.features;
+	}
+	bool operator<(const struct ef &ef) const {
+		return features < ef.features;
 	}
 
 	ef() : features(0ULL), ending_len(0) {}
@@ -74,28 +77,27 @@ class lex {
 			for (auto word = words.begin(); word != words.end();) {
 				auto lres = m_word.lookup(word2ll(*word));
 
+#if 0
 				std::cout << "word: " << *word <<
 					", grammar position: " << gfeat_pos <<
 					", grammar-start: " << *gram_start <<
 					", match-to: " << std::hex;
-				for (auto gw : lres.first)
+				for (auto gw : lres)
 					std::cout << "0x" << gw.features << " ";
 				std::cout << std::dec << std::endl;
-
-				ef eftmp = found(gfeat[gfeat_pos], lres.first);
+#endif
+				ef eftmp = found(gfeat[gfeat_pos], lres);
 				if (!eftmp.features) {
 					// try next word if the first grammar entry doesn't match
 					if (gfeat_pos == 0) {
 						++word;
 						++gram_start;
-						std::cout << std::endl;
 						continue;
 					}
 
 					gfeat_pos = 0;
 					++gram_start;
 					word = gram_start;
-					std::cout << std::endl;
 					continue;
 				}
 
@@ -122,10 +124,10 @@ class lex {
 
 			auto res = m_word.lookup(ll);
 
-			if (res.first.size()) {
+			if (res.size()) {
 				std::ostringstream ss;
 
-				int count = ll.size() - res.first[0].ending_len;
+				int count = ll.size() - res[0].ending_len;
 				for (auto l = ll.rbegin(); l != ll.rend(); ++l) {
 					ss << *l;
 
@@ -136,7 +138,7 @@ class lex {
 				return ss.str();
 			}
 
-			return word;
+			return "";
 		}
 
 		std::vector<ef> lookup(const std::string &word) {
@@ -144,20 +146,16 @@ class lex {
 
 			auto res = m_word.lookup(ll);
 
-			std::string ex = "exact";
-			if (res.second != (int)ll.size())
-				ex = "not exact (" + boost::lexical_cast<std::string>(res.second) +
-					"/" + boost::lexical_cast<std::string>(ll.size()) + ")";
-
-			std::cout << "word: " << word << ", match: " << ex << ": ";
-			for (auto v : res.first) {
+#if 0
+			std::cout << "word: " << word << ": ";
+			for (auto v : res) {
 				std::cout << v.ending_len <<
 					"," << std::hex << "0x" << v.features <<
 					" " << std::dec;
 			}
 			std::cout << std::endl;
-
-			return res.first;
+#endif
+			return res;
 		}
 
 	private:
@@ -217,13 +215,13 @@ class lex {
 					max_count = count;
 				}
 			}
-
+#if 0
 			std::cout << "requested mask: 0x" << std::hex << mask <<
 				", requested bits: " << std::dec << request_max_count <<
 				", best-match: 0x" << std::hex << max_ef.features <<
 				", bits-intersection: " << std::dec << max_count <<
 				std::endl;
-
+#endif
 			if (max_count >= request_max_count)
 				return max_ef;
 

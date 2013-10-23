@@ -74,18 +74,19 @@ static void check_node(int argc, char *argv[])
 		std::string tmp = argv[i];
 
 		ioremap::trie::letters lookup;
-		ioremap::trie::letters ll;
 
+		std::string word;
 		lb::ssegment_index cmap(lb::character, tmp.begin(), tmp.end(), m_loc);
 		for (auto it = cmap.begin(), e = cmap.end(); it != e; ++it) {
-			if (lookup.size() < 1)
+			if (lookup.size() < 3) {
 				lookup.push_back(it->str());
-			ll.push_back(it->str());
+				word += it->str();
+			}
 		}
 
 		auto data = root.lookup(lookup);
-		for (auto d : data.first) {
-			std::cout << "word: " << tmp << ", pos: " << data.second << ", exact: " << (data.second == (int)ll.size()) << ", data: " << d << std::endl;
+		for (auto d : data) {
+			std::cout << "word: " << word << "/" << tmp << ", data: " << d << std::endl;
 		}
 	}
 }
