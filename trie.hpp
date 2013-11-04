@@ -177,7 +177,7 @@ class node {
 			// put data not only at the end of the word (last node in trie),
 			// but into every node on every level
 
-			if (pos + 1 == ll.size()) {
+			if (pos + 1 == (int)ll.size()) {
 				n.append_data(d);
 			} else {
 				n.raw_add(ll, pos + 1, d);
@@ -208,7 +208,7 @@ class node {
 			if (self)
 				ret = m_data;
 
-			for (int i = 0; i < m_children.size(); ++i) {
+			for (size_t i = 0; i < m_children.size(); ++i) {
 				for (auto & t : m_children[i].data().rest(true))
 					ret.insert(t);
 			}
@@ -226,7 +226,7 @@ class node {
 				return rest(false);
 			}
 
-			if (pos + 1 == ll.size()) {
+			if (pos + 1 == (int)ll.size()) {
 				auto tmp = el->data().data();
 				if (tmp.size() == 0)
 					return el->data().rest(true);
