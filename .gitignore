@@ -15,9 +15,6 @@
 CMakeCache.txt
 CMakeFiles/
 Makefile
-include/Makefile
-include/dnet/Makefile
-include/elliptics/typedefs.h
 install_manifest.txt
 root/
 tags
@@ -27,3 +24,4 @@ warp_ann_zparser
 warp_trie_test
 warp_zpack
 cmake_install.cmake
+build/*
