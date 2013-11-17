@@ -76,6 +76,25 @@ if (THEVOID)
 		${SWARM_LIBRARIES}
 		${SWARM_URLFETCHER_LIBRARIES}
 		)
+
+	locate_library(LIBEV "ev++.h" "ev" "libev")
+	include_directories(
+	    ${LIBEV_INCLUDE_DIRS}
+	)
+	link_directories(
+	    ${LIBEV_LIBRARY_DIRS}
+	)
+
+message("libev include dirs: " ${LIBEV_INCLUDE_DIRS})
+
+	add_executable(warp_client client.cpp)
+	target_link_libraries(warp_client
+		${LIBEV_LIBRARIES}
+		${Boost_LIBRARIES}
+		${MSGPACK_LIBRARIES}
+		${SWARM_LIBRARIES}
+		${SWARM_URLFETCHER_LIBRARIES}
+		)
 endif()
 
 FILE(GLOB headers
