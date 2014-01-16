@@ -172,6 +172,21 @@ class lex {
 			return "";
 		}
 
+		std::map<std::string, std::vector<ef>> lookup_sentence(const std::string &sent) {
+			std::map<std::string, std::vector<ef>> ewords;
+
+			lb::ssegment_index wmap(lb::word, sent.begin(), sent.end(), m_loc);
+			wmap.rule(lb::word_any);
+
+			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
+				const auto & res = lookup(it->str());
+				if (res.size())
+					ewords[it->str()] = res;
+			}
+
+			return ewords;
+		}
+
 		std::vector<ef> lookup(const std::string &word) {
 			auto ll = word2ll(word);
 
