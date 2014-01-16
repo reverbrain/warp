@@ -18,6 +18,7 @@
 #define __IOREMAP_WARP_LEX_HPP
 
 #include <boost/locale.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include "pack.hpp"
 #include "trie.hpp"
@@ -102,6 +103,13 @@ class lex {
 			}
 
 			return ret;
+		}
+
+		std::vector<grammar> generate(const std::string &gram_string) {
+			std::vector<std::string> ret;
+
+			boost::split(ret, gram_string, boost::is_any_of("\t "));
+			return generate(ret);
 		}
 
 		std::vector<int> grammar_deduction_sentence(const std::vector<grammar> &gfeat, const std::string &sent) {
