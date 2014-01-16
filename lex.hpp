@@ -97,6 +97,18 @@ class lex {
 			return ret;
 		}
 
+		std::vector<int> grammar_deduction_sentence(const std::vector<grammar> &gfeat, const std::string &sent) {
+			lb::ssegment_index wmap(lb::word, sent.begin(), sent.end(), m_loc);
+			wmap.rule(lb::word_any);
+
+			std::vector<std::string> words;
+			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
+				words.emplace_back(it->str());
+			}
+
+			return grammar_deduction(gfeat, words);
+		}
+
 		std::vector<int> grammar_deduction(const std::vector<grammar> &gfeat, const std::vector<std::string> &words) {
 			// this is actually substring search, but I do not care about more optimized
 			// algorithms for now, since grammatics are supposed to be rather small
