@@ -18,28 +18,6 @@
     },
     "monitor-port": 20000,
     "application": {
-        "remotes": [
-            "localhost:1025:2"
-        ],
-        "groups": [
-            1,
-            2,
-            3
-        ],
-        "signatures": [
-            {
-                "key": "some-cool-key",
-                "path": ""
-            }
-        ],
-        "redirect": false,
-        "users": [
-            {
-                "name": "qwerty",
-                "namespace": "qwerty",
-                "password": "trello"
-            }
-
-        ]
+	"msgpack-input" : "/home/zbr/awork/warp/data/zaliznyak.msgpack"
     }
 }

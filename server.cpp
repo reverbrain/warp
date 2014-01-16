@@ -14,80 +14,111 @@
  * limitations under the License.
  */
 
+#include "lex.hpp"
+
 #include <swarm/http_request.hpp>
 #include <swarm/urlfetcher/url_fetcher.hpp>
 #include <thevoid/server.hpp>
 #include <thevoid/stream.hpp>
 
+#include <thevoid/rapidjson/document.h>
+#include <thevoid/rapidjson/stringbuffer.h>
+#include <thevoid/rapidjson/prettywriter.h>
+
 using namespace ioremap;
 
 template <typename T>
-struct on_upload : public thevoid::simple_request_stream<T>, public std::enable_shared_from_this<on_upload<T>>
+struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable_shared_from_this<on_grammar<T>>
 {
 	virtual void on_request(const swarm::http_request &req, const boost::asio::const_buffer &buffer) {
-		const swarm::url_query &query_list = req.url().query();
+		(void) req;
 
-		(void) buffer;
+		rapidjson::Document doc;
+		const char *ptr = boost::asio::buffer_cast<const char*>(buffer);
+		doc.Parse<0>(ptr);
 
-		auto name = query_list.item_value("name");
-
-		if (!name) {
-			this->send_reply(ioremap::swarm::http_response::bad_request);
+		if (doc.HasParseError()) {
+			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: failed to parse document: %s", doc.GetParseError());
+			this->send_reply(swarm::http_response::bad_request);
 			return;
 		}
 
-		std::string data = "POST reply";
-		swarm::url_fetcher::response reply;
-		reply.set_code(swarm::url_fetcher::response::ok);
-		reply.headers().set_content_length(data.size());
-		reply.headers().set_content_type("text/plain");
-		this->send_reply(std::move(reply), std::move(data));
+		if (!doc.HasMember("data")) {
+			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: no 'data' string in the document");
+			this->send_reply(swarm::http_response::bad_request);
+			return;
+		}
+
+		std::string data = doc["data"].GetString();
+
+		std::map<std::string, std::vector<warp::ef>> ewords = this->server()->lex().lookup_sentence(data);
+
+		rapidjson::Document reply;
+		reply.SetObject();
+
+		for (auto it = ewords.begin(); it != ewords.end(); ++it) {
+			rapidjson::Value features(rapidjson::kArrayType);
+
+			for (auto ef = it->second.begin(); ef != it->second.end(); ++ef) {
+				rapidjson::Value obj(rapidjson::kObjectType);
+
+				obj.AddMember("features", ef->features, reply.GetAllocator());
+				obj.AddMember("ending-length", ef->ending_len, reply.GetAllocator());
+
+				features.PushBack(obj, reply.GetAllocator());
+			}
+
+			reply.AddMember(it->first.c_str(), reply.GetAllocator(), features, reply.GetAllocator());
+		}
+
+		rapidjson::StringBuffer sbuf;
+		rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sbuf);
+
+		reply.Accept(writer);
+		sbuf.Put('\n');
+
+		swarm::url_fetcher::response http_reply;
+		http_reply.set_code(swarm::url_fetcher::response::ok);
+		http_reply.headers().set_content_length(sbuf.Size());
+		http_reply.headers().set_content_type("text/json");
+
+		std::string sbuf_data = sbuf.GetString();
+
+		this->send_reply(std::move(http_reply), std::move(sbuf_data));
 	}
 };
-
-template <typename T>
-struct on_get : public thevoid::simple_request_stream<T>, public std::enable_shared_from_this<on_get<T>>
-{
-	virtual void on_request(const swarm::http_request &req, const boost::asio::const_buffer &buffer) {
-		using namespace std::placeholders;
-
-		(void) buffer;
-
-		const auto &query = req.url().query();
-
-		std::string data = "GET reply";
-		swarm::url_fetcher::response reply;
-		reply.set_code(swarm::url_fetcher::response::ok);
-		reply.headers().set_content_length(data.size());
-		reply.headers().set_content_type("text/plain");
-
-		this->send_reply(std::move(reply), std::move(data));
-	}
-};
-
 
 class http_server : public thevoid::server<http_server>
 {
 public:
 	virtual bool initialize(const rapidjson::Value &config) {
-		(void) config;
+		if (!config.HasMember("msgpack-input")) {
+			this->logger().log(swarm::SWARM_LOG_ERROR, "initialize: no msgpack-input option");
+			return false;
+		}
 
-		on<on_get<http_server>>(
-			options::exact_match("/get"),
-			options::methods("GET")
-		);
-		on<on_upload<http_server>>(
-			options::exact_match("/upload"),
+		std::string path = config["msgpack-input"].GetString();
+		m_lex.load(path);
+
+		this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: data from %s has been loaded", path.c_str());
+
+		on<on_grammar<http_server>>(
+			options::exact_match("/grammar"),
 			options::methods("POST")
 		);
 	
 		return true;
 	}
 
+	warp::lex &lex(void) {
+		return m_lex;
+	}
+
 private:
+	warp::lex m_lex;
 };
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
 	return ioremap::thevoid::run_server<http_server>(argc, argv);
 }
