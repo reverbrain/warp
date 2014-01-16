@@ -40,6 +40,13 @@ struct ef {
 	ef() : features(0ULL), ending_len(0) {}
 };
 
+struct word_features {
+	std::string word;
+	std::vector<ef> fvec;
+
+	word_features(const std::string &word, const std::vector<ef> &fvec) : word(word), fvec(fvec) {}
+};
+
 struct grammar {
 	parsed_word::feature_mask	features;
 	parsed_word::feature_mask	negative;
@@ -101,65 +108,74 @@ class lex {
 			lb::ssegment_index wmap(lb::word, sent.begin(), sent.end(), m_loc);
 			wmap.rule(lb::word_any);
 
-			std::vector<std::string> words;
+			std::vector<word_features> wfeat;
 			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
-				words.emplace_back(it->str());
+				wfeat.emplace_back(it->str(), lookup(it->str()));
 			}
 
-			return grammar_deduction(gfeat, words);
+			return grammar_deduction(gfeat, wfeat);
 		}
 
-		std::vector<int> grammar_deduction(const std::vector<grammar> &gfeat, const std::vector<std::string> &words) {
+		std::vector<int> grammar_deduction(const std::vector<grammar> &gfeat, const std::vector<word_features> &wfeat) {
 			// this is actually substring search, but I do not care about more optimized
 			// algorithms for now, since grammatics are supposed to be rather small
 
 			std::vector<int> gram_positions;
 
 			int gfeat_pos = 0;
-			auto gram_start = words.begin();
-			for (auto word = words.begin(); word != words.end();) {
-				auto lres = m_word.lookup(word2ll(*word));
-
+			auto gram_start = wfeat.begin();
+			for (auto it = wfeat.begin(); it != wfeat.end();) {
 #if 0
-				std::cout << "word: " << *word <<
+				std::cout << "word: " << it->word <<
 					", grammar position: " << gfeat_pos <<
 					", grammar-start: " << *gram_start <<
 					", match-to: " << std::hex;
-				for (auto gw : lres)
+				for (auto gw : it->fvec)
 					std::cout << "0x" << gw.features << " ";
 				std::cout << std::dec << std::endl;
 #endif
-				ef eftmp = found(gfeat[gfeat_pos], lres);
+				ef eftmp = found(gfeat[gfeat_pos], it->fvec);
 				if (!eftmp.features) {
 					// try next word if the first grammar entry doesn't match
 					if (gfeat_pos == 0) {
-						++word;
+						++it;
 						++gram_start;
 						continue;
 					}
 
 					gfeat_pos = 0;
 					++gram_start;
-					word = gram_start;
+					it = gram_start;
 					continue;
 				}
 
 				++gfeat_pos;
 
 				if (gfeat_pos != (int)gfeat.size()) {
-					++word;
+					++it;
 					continue;
 				}
 
 				// whole grammar has been found
-				gram_positions.push_back(gram_start - words.begin());
+				gram_positions.push_back(gram_start - wfeat.begin());
 				gfeat_pos = 0;
 
-				++word;
-				gram_start = word;
+				++it;
+				gram_start = it;
 			}
 
 			return gram_positions;
+		}
+
+		std::vector<int> grammar_deduction(const std::vector<grammar> &gfeat, const std::vector<std::string> &words) {
+			std::vector<word_features> wfeat;
+
+			wfeat.reserve(words.size());
+			for (auto w = words.begin(); w != words.end(); ++w) {
+				wfeat.emplace_back(*w, lookup(*w));
+			}
+
+			return grammar_deduction(gfeat, wfeat);
 		}
 
 		std::string root(const std::string &word) {
@@ -184,19 +200,18 @@ class lex {
 			return "";
 		}
 
-		std::map<std::string, std::vector<ef>> lookup_sentence(const std::string &sent) {
-			std::map<std::string, std::vector<ef>> ewords;
+		std::vector<word_features> lookup_sentence(const std::string &sent) {
+			std::vector<word_features> wf;
 
 			lb::ssegment_index wmap(lb::word, sent.begin(), sent.end(), m_loc);
 			wmap.rule(lb::word_any);
 
 			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
 				const auto & res = lookup(it->str());
-				if (res.size())
-					ewords[it->str()] = res;
+				wf.emplace_back(it->str(), res);
 			}
 
-			return ewords;
+			return wf;
 		}
 
 		std::vector<ef> lookup(const std::string &word) {
