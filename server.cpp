@@ -51,7 +51,7 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 
 		std::string data = doc["data"].GetString();
 
-		std::map<std::string, std::vector<warp::ef>> ewords = this->server()->lex().lookup_sentence(data);
+		std::vector<warp::word_features> ewords = this->server()->lex().lookup_sentence(data);
 
 		rapidjson::Document reply;
 		reply.SetObject();
@@ -59,7 +59,7 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 		for (auto it = ewords.begin(); it != ewords.end(); ++it) {
 			rapidjson::Value features(rapidjson::kArrayType);
 
-			for (auto ef = it->second.begin(); ef != it->second.end(); ++ef) {
+			for (auto ef = it->fvec.begin(); ef != it->fvec.end(); ++ef) {
 				rapidjson::Value obj(rapidjson::kObjectType);
 
 				obj.AddMember("features", ef->features, reply.GetAllocator());
@@ -68,7 +68,7 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 				features.PushBack(obj, reply.GetAllocator());
 			}
 
-			reply.AddMember(it->first.c_str(), reply.GetAllocator(), features, reply.GetAllocator());
+			reply.AddMember(it->word.c_str(), reply.GetAllocator(), features, reply.GetAllocator());
 		}
 
 		rapidjson::StringBuffer sbuf;
