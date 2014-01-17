@@ -133,16 +133,16 @@ class lex {
 			int gfeat_pos = 0;
 			auto gram_start = wfeat.begin();
 			for (auto it = wfeat.begin(); it != wfeat.end();) {
-#if 0
-				std::cout << "word: " << it->word <<
+				ef eftmp = found(gfeat[gfeat_pos], it->fvec);
+#ifdef WARP_STDOUT_DEBUG
+				std::cout << "grammar_deduction: word: " << it->word <<
 					", grammar position: " << gfeat_pos <<
-					", grammar-start: " << *gram_start <<
+					", grammar-start: " << gram_start->word <<
 					", match-to: " << std::hex;
 				for (auto gw : it->fvec)
 					std::cout << "0x" << gw.features << " ";
-				std::cout << std::dec << std::endl;
+				std::cout << ", found-features: " << eftmp.features << std::dec << std::endl;
 #endif
-				ef eftmp = found(gfeat[gfeat_pos], it->fvec);
 				if (!eftmp.features) {
 					// try next word if the first grammar entry doesn't match
 					if (gfeat_pos == 0) {
@@ -227,8 +227,8 @@ class lex {
 
 			auto res = m_word.lookup(ll);
 
-#if 0
-			std::cout << "word: " << word << ": ";
+#ifdef WARP_STDOUT_DEBUG
+			std::cout << "lookup: word: " << word << ": ";
 			for (auto v : res) {
 				std::cout << v.ending_len <<
 					"," << std::hex << "0x" << v.features <<
@@ -299,8 +299,9 @@ class lex {
 					max_count = count;
 				}
 			}
-#if 0
-			std::cout << "requested mask: 0x" << std::hex << mask.features <<
+
+#ifdef WARP_STDOUT_DEBUG
+			std::cout << "found: requested mask: 0x" << std::hex << mask.features <<
 				", negative: 0x" << mask.negative <<
 				", requested bits: " << std::dec << request_max_count <<
 				", best-match: 0x" << std::hex << max_ef.features <<
