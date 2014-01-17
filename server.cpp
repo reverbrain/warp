@@ -56,6 +56,7 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 		rapidjson::Document reply;
 		reply.SetObject();
 
+		rapidjson::Value data_obj(rapidjson::kObjectType);
 		for (auto it = ewords.begin(); it != ewords.end(); ++it) {
 			rapidjson::Value features(rapidjson::kArrayType);
 
@@ -68,7 +69,40 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 				features.PushBack(obj, reply.GetAllocator());
 			}
 
-			reply.AddMember(it->word.c_str(), reply.GetAllocator(), features, reply.GetAllocator());
+			data_obj.AddMember(it->word.c_str(), reply.GetAllocator(), features, reply.GetAllocator());
+		}
+		reply.AddMember("lemmas", data_obj, reply.GetAllocator());
+
+		if (doc.HasMember("grammar")) {
+			rapidjson::Value grammar_obj(rapidjson::kObjectType);
+			std::string grammar = doc["grammar"].GetString();
+
+			std::vector<warp::grammar> grams = this->server()->lex().generate(grammar);
+			std::vector<int> starts = this->server()->lex().grammar_deduction_sentence(grams, data);
+
+			rapidjson::Value jstarts(rapidjson::kArrayType);
+			rapidjson::Value jstrings(rapidjson::kArrayType);
+
+			for (auto s = starts.begin(); s != starts.end(); ++s) {
+				jstarts.PushBack(*s, reply.GetAllocator());
+
+				std::ostringstream out;
+				for (size_t i = 0; i < grams.size(); ++i) {
+					out << ewords[i + *s].word;
+					if (i != grams.size() - 1)
+						out << " ";
+				}
+
+				rapidjson::Value tmp;
+				tmp.SetString(out.str().c_str(), reply.GetAllocator());
+
+				jstrings.PushBack(tmp, reply.GetAllocator());
+			}
+
+			grammar_obj.AddMember("starts", jstarts, reply.GetAllocator());
+			grammar_obj.AddMember("texts", jstrings, reply.GetAllocator());
+
+			reply.AddMember("grammar", grammar_obj, reply.GetAllocator());
 		}
 
 		rapidjson::StringBuffer sbuf;
@@ -100,7 +134,7 @@ public:
 		std::string path = config["msgpack-input"].GetString();
 		m_lex.load(path);
 
-		this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: data from %s has been loaded", path.c_str());
+		this->logger().log(swarm::SWARM_LOG_INFO, "grammar::request: data from %s has been loaded", path.c_str());
 
 		on<on_grammar<http_server>>(
 			options::exact_match("/grammar"),
