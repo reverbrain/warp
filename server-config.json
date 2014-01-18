@@ -18,6 +18,6 @@
     },
     "monitor-port": 20000,
     "application": {
-	"msgpack-input" : "/home/zbr/awork/warp/data/zaliznyak.msgpack"
+	"msgpack-input" : "/opt/disk/tmp/zal.msgpack"
     }
 }

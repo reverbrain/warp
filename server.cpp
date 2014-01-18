@@ -30,31 +30,82 @@ using namespace ioremap;
 template <typename T>
 struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable_shared_from_this<on_grammar<T>>
 {
-	virtual void on_request(const swarm::http_request &req, const boost::asio::const_buffer &buffer) {
-		(void) req;
+	virtual void on_request(const swarm::http_request &http_req, const boost::asio::const_buffer &buffer) {
+		(void) http_req;
 
 		rapidjson::Document doc;
 		const char *ptr = boost::asio::buffer_cast<const char*>(buffer);
 		doc.Parse<0>(ptr);
 
 		if (doc.HasParseError()) {
-			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: failed to parse document: %s", doc.GetParseError());
+			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: failed to parse document: %s",
+					doc.GetParseError());
 			this->send_reply(swarm::http_response::bad_request);
 			return;
 		}
-
-		if (!doc.HasMember("data")) {
-			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: no 'data' string in the document");
-			this->send_reply(swarm::http_response::bad_request);
-			return;
-		}
-
-		std::string data = doc["data"].GetString();
-
-		std::vector<warp::word_features> ewords = this->server()->lex().lookup_sentence(data);
 
 		rapidjson::Document reply;
 		reply.SetObject();
+
+		try {
+			rapidjson::Value reply_array(rapidjson::kArrayType);
+
+			if (!doc.HasMember("request")) {
+				this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: no 'request' field in the document");
+				this->send_reply(swarm::http_response::bad_request);
+				return;
+			}
+
+			const rapidjson::Value &req = doc["request"];
+			if (req.IsArray()) {
+				for (rapidjson::Value::ConstValueIterator it = req.Begin(); it != req.End(); ++it) {
+					rapidjson::Value element(rapidjson::kObjectType);
+					parse_single_element(*it, element, reply.GetAllocator());
+
+					reply_array.PushBack(element, reply.GetAllocator());
+				}
+			} else {
+				rapidjson::Value element(rapidjson::kObjectType);
+				parse_single_element(req, element, reply.GetAllocator());
+
+				reply_array.PushBack(element, reply.GetAllocator());
+			}
+
+			reply.AddMember("reply", reply_array, reply.GetAllocator());
+
+			rapidjson::StringBuffer sbuf;
+			rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sbuf);
+
+			reply.Accept(writer);
+			sbuf.Put('\n');
+
+			swarm::url_fetcher::response http_reply;
+			http_reply.set_code(swarm::url_fetcher::response::ok);
+			http_reply.headers().set_content_length(sbuf.Size());
+			http_reply.headers().set_content_type("text/json");
+
+			std::string sbuf_data = sbuf.GetString();
+
+			this->send_reply(std::move(http_reply), std::move(sbuf_data));
+		} catch (const std::exception &e) {
+			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: caught exception during processing: %s",
+					e.what());
+			this->send_reply(swarm::http_response::bad_request);
+			return;
+		}
+	}
+
+	bool parse_single_element(const rapidjson::Value &val, rapidjson::Value &reply,
+			rapidjson::Document::AllocatorType &allocator) {
+		if (!val.HasMember("data")) {
+			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::parse_single_element: no 'data' string in the document");
+			return false;
+		}
+
+		std::string data = val["data"].GetString();
+		this->logger().log(swarm::SWARM_LOG_NOTICE, "grammar::parse_single_element: %s", data.c_str());
+
+		std::vector<warp::word_features> ewords = this->server()->lex().lookup_sentence(data);
 
 		rapidjson::Value data_obj(rapidjson::kObjectType);
 		for (auto it = ewords.begin(); it != ewords.end(); ++it) {
@@ -63,19 +114,19 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 			for (auto ef = it->fvec.begin(); ef != it->fvec.end(); ++ef) {
 				rapidjson::Value obj(rapidjson::kObjectType);
 
-				obj.AddMember("features", ef->features, reply.GetAllocator());
-				obj.AddMember("ending-length", ef->ending_len, reply.GetAllocator());
+				obj.AddMember("features", ef->features, allocator);
+				obj.AddMember("ending-length", ef->ending_len, allocator);
 
-				features.PushBack(obj, reply.GetAllocator());
+				features.PushBack(obj, allocator);
 			}
 
-			data_obj.AddMember(it->word.c_str(), reply.GetAllocator(), features, reply.GetAllocator());
+			data_obj.AddMember(it->word.c_str(), allocator, features, allocator);
 		}
-		reply.AddMember("lemmas", data_obj, reply.GetAllocator());
+		reply.AddMember("lemmas", data_obj, allocator);
 
-		if (doc.HasMember("grammar")) {
+		if (val.HasMember("grammar")) {
 			rapidjson::Value grammar_obj(rapidjson::kObjectType);
-			std::string grammar = doc["grammar"].GetString();
+			std::string grammar = val["grammar"].GetString();
 
 			std::vector<warp::grammar> grams = this->server()->lex().generate(grammar);
 			std::vector<int> starts = this->server()->lex().grammar_deduction_sentence(grams, data);
@@ -84,7 +135,7 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 			rapidjson::Value jstrings(rapidjson::kArrayType);
 
 			for (auto s = starts.begin(); s != starts.end(); ++s) {
-				jstarts.PushBack(*s, reply.GetAllocator());
+				jstarts.PushBack(*s, allocator);
 
 				std::ostringstream out;
 				for (size_t i = 0; i < grams.size(); ++i) {
@@ -94,31 +145,18 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 				}
 
 				rapidjson::Value tmp;
-				tmp.SetString(out.str().c_str(), reply.GetAllocator());
+				tmp.SetString(out.str().c_str(), allocator);
 
-				jstrings.PushBack(tmp, reply.GetAllocator());
+				jstrings.PushBack(tmp, allocator);
 			}
 
-			grammar_obj.AddMember("starts", jstarts, reply.GetAllocator());
-			grammar_obj.AddMember("texts", jstrings, reply.GetAllocator());
+			grammar_obj.AddMember("starts", jstarts, allocator);
+			grammar_obj.AddMember("texts", jstrings, allocator);
 
-			reply.AddMember("grammar", grammar_obj, reply.GetAllocator());
+			reply.AddMember("grammar", grammar_obj, allocator);
 		}
 
-		rapidjson::StringBuffer sbuf;
-		rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sbuf);
-
-		reply.Accept(writer);
-		sbuf.Put('\n');
-
-		swarm::url_fetcher::response http_reply;
-		http_reply.set_code(swarm::url_fetcher::response::ok);
-		http_reply.headers().set_content_length(sbuf.Size());
-		http_reply.headers().set_content_type("text/json");
-
-		std::string sbuf_data = sbuf.GetString();
-
-		this->send_reply(std::move(http_reply), std::move(sbuf_data));
+		return true;
 	}
 };
 
@@ -132,7 +170,7 @@ public:
 		}
 
 		std::string path = config["msgpack-input"].GetString();
-		m_lex.load(path);
+		//m_lex.load(path);
 
 		this->logger().log(swarm::SWARM_LOG_INFO, "grammar::request: data from %s has been loaded", path.c_str());
 
