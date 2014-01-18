@@ -170,7 +170,7 @@ public:
 		}
 
 		std::string path = config["msgpack-input"].GetString();
-		//m_lex.load(path);
+		m_lex.load(path);
 
 		this->logger().log(swarm::SWARM_LOG_INFO, "grammar::request: data from %s has been loaded", path.c_str());
 
