@@ -103,57 +103,71 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 		}
 
 		std::string data = val["data"].GetString();
-		this->logger().log(swarm::SWARM_LOG_NOTICE, "grammar::parse_single_element: %s", data.c_str());
+		bool normalize = val.HasMember("normalize");
+		this->logger().log(swarm::SWARM_LOG_NOTICE, "grammar::parse_single_element: %s, normalize: %d",
+				data.c_str(), normalize);
 
-		std::vector<warp::word_features> ewords = this->server()->lex().lookup_sentence(data);
+		if (normalize) {
+			std::vector<std::string> roots = this->server()->lex().normalize_sentence(data);
+			std::ostringstream ss;
 
-		rapidjson::Value data_obj(rapidjson::kObjectType);
-		for (auto it = ewords.begin(); it != ewords.end(); ++it) {
-			rapidjson::Value features(rapidjson::kArrayType);
+			for (auto it = roots.begin(); it != roots.end(); ++it)
+				ss << *it << " ";
 
-			for (auto ef = it->fvec.begin(); ef != it->fvec.end(); ++ef) {
-				rapidjson::Value obj(rapidjson::kObjectType);
+			std::string text = ss.str();
+			rapidjson::Value norm(text.c_str(), text.size(), allocator);
+			reply.AddMember("normalize", norm, allocator);
+		} else {
+			rapidjson::Value data_obj(rapidjson::kObjectType);
 
-				obj.AddMember("features", ef->features, allocator);
-				obj.AddMember("ending-length", ef->ending_len, allocator);
+			std::vector<warp::word_features> ewords = this->server()->lex().lookup_sentence(data);
+			for (auto it = ewords.begin(); it != ewords.end(); ++it) {
+				rapidjson::Value features(rapidjson::kArrayType);
 
-				features.PushBack(obj, allocator);
-			}
+				for (auto ef = it->fvec.begin(); ef != it->fvec.end(); ++ef) {
+					rapidjson::Value obj(rapidjson::kObjectType);
 
-			data_obj.AddMember(it->word.c_str(), allocator, features, allocator);
-		}
-		reply.AddMember("lemmas", data_obj, allocator);
+					obj.AddMember("features", ef->features, allocator);
+					obj.AddMember("ending-length", ef->ending_len, allocator);
 
-		if (val.HasMember("grammar")) {
-			rapidjson::Value grammar_obj(rapidjson::kObjectType);
-			std::string grammar = val["grammar"].GetString();
-
-			std::vector<warp::grammar> grams = this->server()->lex().generate(grammar);
-			std::vector<int> starts = this->server()->lex().grammar_deduction_sentence(grams, data);
-
-			rapidjson::Value jstarts(rapidjson::kArrayType);
-			rapidjson::Value jstrings(rapidjson::kArrayType);
-
-			for (auto s = starts.begin(); s != starts.end(); ++s) {
-				jstarts.PushBack(*s, allocator);
-
-				std::ostringstream out;
-				for (size_t i = 0; i < grams.size(); ++i) {
-					out << ewords[i + *s].word;
-					if (i != grams.size() - 1)
-						out << " ";
+					features.PushBack(obj, allocator);
 				}
 
-				rapidjson::Value tmp;
-				tmp.SetString(out.str().c_str(), allocator);
-
-				jstrings.PushBack(tmp, allocator);
+				data_obj.AddMember(it->word.c_str(), allocator, features, allocator);
 			}
+			reply.AddMember("lemmas", data_obj, allocator);
 
-			grammar_obj.AddMember("starts", jstarts, allocator);
-			grammar_obj.AddMember("texts", jstrings, allocator);
+			if (val.HasMember("grammar")) {
+				rapidjson::Value grammar_obj(rapidjson::kObjectType);
+				std::string grammar = val["grammar"].GetString();
 
-			reply.AddMember("grammar", grammar_obj, allocator);
+				std::vector<warp::grammar> grams = this->server()->lex().generate(grammar);
+				std::vector<int> starts = this->server()->lex().grammar_deduction_sentence(grams, data);
+
+				rapidjson::Value jstarts(rapidjson::kArrayType);
+				rapidjson::Value jstrings(rapidjson::kArrayType);
+
+				for (auto s = starts.begin(); s != starts.end(); ++s) {
+					jstarts.PushBack(*s, allocator);
+
+					std::ostringstream out;
+					for (size_t i = 0; i < grams.size(); ++i) {
+						out << ewords[i + *s].word;
+						if (i != grams.size() - 1)
+							out << " ";
+					}
+
+					rapidjson::Value tmp;
+					tmp.SetString(out.str().c_str(), allocator);
+
+					jstrings.PushBack(tmp, allocator);
+				}
+
+				grammar_obj.AddMember("starts", jstarts, allocator);
+				grammar_obj.AddMember("texts", jstrings, allocator);
+
+				reply.AddMember("grammar", grammar_obj, allocator);
+			}
 		}
 
 		return true;

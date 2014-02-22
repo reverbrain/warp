@@ -222,6 +222,18 @@ class lex {
 			return wf;
 		}
 
+		std::vector<std::string> normalize_sentence(const std::string &sent) {
+			lb::ssegment_index wmap(lb::word, sent.begin(), sent.end(), m_loc);
+			wmap.rule(lb::word_any);
+
+			std::vector<std::string> roots;
+			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
+				roots.emplace_back(root(it->str()));
+			}
+
+			return roots;
+		}
+
 		std::vector<ef> lookup(const std::string &word) {
 			auto ll = word2ll(word);
 
