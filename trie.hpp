@@ -134,7 +134,6 @@ class layer {
 		std::vector<L> m_layer;
 };
 
-template<class X> using letter_layer = layer<letter<X>>;
 typedef std::vector<std::string> letters;
 
 template <typename D>
@@ -162,7 +161,7 @@ class node {
 
 	private:
 		std::set<D> m_data;
-		letter_layer<node<D>> m_children;
+		layer<letter<node<D>>> m_children;
 
 		void append_data(const D &d) {
 			m_data.insert(d);
