@@ -35,8 +35,16 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 
 		rapidjson::Document doc;
 		const char *ptr = boost::asio::buffer_cast<const char*>(buffer);
-		doc.Parse<0>(ptr);
+		if (!ptr) {
+			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: empty request\n");
+			this->send_reply(swarm::http_response::bad_request);
+			return;
+		}
 
+		std::string buf;
+		buf.assign(ptr, boost::asio::buffer_size(buffer));
+
+		doc.Parse<0>(buf.c_str());
 		if (doc.HasParseError()) {
 			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: failed to parse document: %s",
 					doc.GetParseError());
@@ -86,6 +94,9 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 
 			std::string sbuf_data = sbuf.GetString();
 
+			this->logger().log(swarm::SWARM_LOG_DEBUG, "grammar::request: completed processing, reply-size: %zd",
+					sbuf.Size());
+
 			this->send_reply(std::move(http_reply), std::move(sbuf_data));
 		} catch (const std::exception &e) {
 			this->logger().log(swarm::SWARM_LOG_ERROR, "grammar::request: caught exception during processing: %s",
@@ -104,8 +115,8 @@ struct on_grammar : public thevoid::simple_request_stream<T>, public std::enable
 
 		std::string data = val["data"].GetString();
 		bool normalize = val.HasMember("normalize");
-		this->logger().log(swarm::SWARM_LOG_NOTICE, "grammar::parse_single_element: %s, normalize: %d",
-				data.c_str(), normalize);
+		this->logger().log(swarm::SWARM_LOG_NOTICE, "grammar::parse_single_element: length: %zd, data: '%s', normalize: %d",
+				data.size(), data.c_str(), normalize);
 
 		if (normalize) {
 			std::vector<std::string> roots = this->server()->lex().normalize_sentence(data);
