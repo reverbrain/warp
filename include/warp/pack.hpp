@@ -28,16 +28,23 @@
 
 namespace ioremap { namespace warp {
 
+struct feature_ending {
+	std::string ending;
+	parsed_word::feature_mask features;
+
+	feature_ending() : features(0ULL) {}
+	feature_ending(const std::string &end, parsed_word::feature_mask fm) : ending(end), features(fm) {}
+
+	MSGPACK_DEFINE(ending, features);
+};
+
 struct entry {
 	enum {
 		serialization_version = 1
 	};
 
 	std::string root;
-	std::string ending;
-	parsed_word::feature_mask features;
-
-	entry() : features(0ULL) {}
+	std::vector<feature_ending> fe;
 };
 
 class packer {
@@ -48,23 +55,32 @@ class packer {
 		}
 
 		packer(const packer &z) = delete;
+		~packer() {
+			for (auto root = m_roots.begin(); root != m_roots.end(); ++root) {
+				root->second.root = root->first;
+				pack(root->second);
+			}
+		}
 
 		bool zprocess(const std::string &root, const struct parsed_word &rec) {
-			return pack(root, rec.ending, rec.features);
+			feature_ending en(rec.ending, rec.features);
+
+			auto r = m_roots.find(root);
+			if (r == m_roots.end()) {
+				m_roots[root].fe.emplace_back(en);
+			} else {
+				r->second.fe.emplace_back(en);
+			}
+			return true;
 		}
 
 	private:
 		std::ofstream m_out;
+		std::map<std::string, entry> m_roots;
 
-		bool pack(const std::string &root, const std::string &ending, const parsed_word::feature_mask features) {
+		bool pack(const entry &entry) {
 			msgpack::sbuffer buf;
-			msgpack::packer<msgpack::sbuffer> pk(&buf);
-
-			pk.pack_array(4);
-			pk.pack((int)entry::serialization_version);
-			pk.pack(root);
-			pk.pack(ending);
-			pk.pack(features);
+			msgpack::pack(&buf, entry);
 
 			m_out.write(buf.data(), buf.size());
 			return true;
@@ -138,18 +154,17 @@ class unpacker {
 namespace msgpack {
 
 template <typename Stream>
-inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const ioremap::warp::entry &e)
+static inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const ioremap::warp::entry &e)
 {
-	o.pack_array(4);
-	o.pack(ioremap::warp::entry::serialization_version);
+	o.pack_array(3);
+	o.pack((int)ioremap::warp::entry::serialization_version);
 	o.pack(e.root);
-	o.pack(e.ending);
-	o.pack(e.features);
+	o.pack(e.fe);
 
 	return o;
 }
 
-inline ioremap::warp::entry &operator >>(msgpack::object o, ioremap::warp::entry &e)
+static inline ioremap::warp::entry &operator >>(msgpack::object o, ioremap::warp::entry &e)
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1) {
 		std::ostringstream ss;
@@ -165,15 +180,14 @@ inline ioremap::warp::entry &operator >>(msgpack::object o, ioremap::warp::entry
 	p[0].convert(&version);
 	switch (version) {
 	case 1: {
-		if (size != 4) {
+		if (size != 3) {
 			std::ostringstream ss;
 			ss << "entry msgpack: array size mismatch: read: " << size << ", must be: 4";
 			throw std::runtime_error(ss.str());
 		}
 
 		p[1].convert(&e.root);
-		p[2].convert(&e.ending);
-		p[3].convert(&e.features);
+		p[2].convert(&e.fe);
 		break;
 	}
 	default: {

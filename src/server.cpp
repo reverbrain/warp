@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "lex.hpp"
+#include "warp/lex.hpp"
 
 #include <swarm/http_request.hpp>
 #include <swarm/urlfetcher/url_fetcher.hpp>

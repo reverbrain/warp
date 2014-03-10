@@ -21,7 +21,6 @@
 #include <boost/algorithm/string.hpp>
 
 #include "pack.hpp"
-#include "trie.hpp"
 
 namespace lb = boost::locale::boundary;
 
@@ -187,25 +186,7 @@ class lex {
 		}
 
 		std::string root(const std::string &word) {
-			auto ll = word2ll(word);
-
-			auto res = m_word.lookup(ll);
-
-			if (res.size()) {
-				std::ostringstream ss;
-
-				int count = ll.size() - res[0].ending_len;
-				for (auto l = ll.rbegin(); l != ll.rend(); ++l) {
-					ss << *l;
-
-					if (--count == 0)
-						break;
-				}
-
-				return ss.str();
-			}
-
-			return "";
+			return word;
 		}
 
 		std::vector<word_features> lookup_sentence(const std::string &sent) {
@@ -235,53 +216,14 @@ class lex {
 		}
 
 		std::vector<ef> lookup(const std::string &word) {
-			auto ll = word2ll(word);
-
-			auto res = m_word.lookup(ll);
-
-#ifdef WARP_STDOUT_DEBUG
-			std::cout << "lookup: word: " << word << ": ";
-			for (auto v : res) {
-				std::cout << v.ending_len <<
-					"," << std::hex << "0x" << v.features <<
-					" " << std::dec;
-			}
-			std::cout << std::endl;
-#endif
-			return res;
+			return std::vector<ef>();
 		}
 
 	private:
-		trie::node<ef> m_word;
-
 		std::locale m_loc;
 
-		trie::letters word2ll(const std::string &word) {
-			trie::letters ll;
-			ll.reserve(word.size());
-
-			lb::ssegment_index cmap(lb::character, word.begin(), word.end(), m_loc);
-			for (auto it = cmap.begin(), e = cmap.end(); it != e; ++it) {
-				ll.emplace_back(it->str());
-			}
-
-			std::reverse(ll.begin(), ll.end());
-
-			return ll;
-		}
-
 		bool unpack_process(const entry &e) {
-			trie::letters root = word2ll(e.root);
-			trie::letters ending = word2ll(e.ending);
-
-			struct ef ef;
-			ef.features = e.features;
-			ef.ending_len = ending.size();
-
-			ending.insert(ending.end(), root.begin(), root.end());
-			m_word.add(ending, ef);
-
-			return true;
+			return false;
 		}
 
 		int bits_set(parsed_word::feature_mask tmp) {
