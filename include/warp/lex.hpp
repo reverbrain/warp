@@ -63,9 +63,8 @@ class lex {
 
 		lex(const std::locale &loc) : m_loc(loc) {}
 
-		void load(const std::string &path) {
-			unpacker unpack(path);
-			unpack.unpack(std::bind(&lex::unpack_process, this, std::placeholders::_1));
+		void load(const std::vector<std::string> &path) {
+			unpacker(path, 2, std::bind(&lex::unpack_process, this, std::placeholders::_1));
 		}
 
 		std::vector<grammar> generate(const std::vector<std::string> &grams) {
