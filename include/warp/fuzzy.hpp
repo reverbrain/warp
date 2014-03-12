@@ -37,11 +37,12 @@ class fuzzy {
 
 			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
 				lstring word = lconvert::from_utf8(boost::locale::to_lower(it->str(), __fuzzy_locale));
-				m_ngram.load(word, word);
+				feed_word(word);
 			}
 		}
 
 		void feed_word(const lstring &word) {
+			std::unique_lock<std::mutex> guard(m_lock);
 			m_ngram.load(word, word);
 		}
 
@@ -89,6 +90,7 @@ class fuzzy {
 
 	private:
 		ngram::ngram<lstring, lstring> m_ngram;
+		std::mutex m_lock;
 };
 
 }} // namespace ioremap::warp
