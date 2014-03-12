@@ -17,14 +17,19 @@
 #ifndef __IOREMAP_WARP_PACK_HPP
 #define __IOREMAP_WARP_PACK_HPP
 
+#include "feature.hpp"
+
+#include <atomic>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <thread>
+#include <vector>
 
 #include <msgpack.hpp>
 
-#include "feature.hpp"
+#include <boost/lexical_cast.hpp>
 
 namespace ioremap { namespace warp {
 
@@ -49,16 +54,42 @@ struct entry {
 
 class packer {
 	public:
-		packer(const std::string &output) {
-			m_out.exceptions(m_out.failbit);
-			m_out.open(output.c_str(), std::ios::binary | std::ios::trunc);
+		packer(const std::string &output, int output_num) : m_output_base(output), m_output_num(output_num) {
 		}
 
 		packer(const packer &z) = delete;
 		~packer() {
+			std::ofstream out;
+
+			int file_id = 0;
+			size_t num = 0;
+			size_t step = m_roots.size() / m_output_num + 1;
+
 			for (auto root = m_roots.begin(); root != m_roots.end(); ++root) {
+				if (!out.good() || !out.is_open()) {
+					std::string name = m_output_base + "." + boost::lexical_cast<std::string>(file_id);
+					out.open(name.c_str(), std::ios::binary | std::ios::trunc);
+					if (!out.good()) {
+						std::cerr << "Could not open output file '" << name << "': " << -errno << std::endl;
+						return;
+					}
+
+					std::cout << "Using '" << name << "' output file" << std::endl;
+				}
+
 				root->second.root = root->first;
-				pack(root->second);
+				bool ret = pack(out, root->second);
+				if (!ret) {
+					std::string name = m_output_base + boost::lexical_cast<std::string>(file_id);
+					std::cerr << "Could not write to output file '" << name << "': " << -errno << std::endl;
+					return;
+				}
+
+				if (++num >= step) {
+					out.close();
+					num = 0;
+					++file_id;
+				}
 			}
 		}
 
@@ -75,14 +106,18 @@ class packer {
 		}
 
 	private:
-		std::ofstream m_out;
 		std::map<std::string, entry> m_roots;
+		std::string m_output_base;
+		int m_output_num;
 
-		bool pack(const entry &entry) {
+		bool pack(std::ofstream &out, const entry &entry) {
 			msgpack::sbuffer buf;
 			msgpack::pack(&buf, entry);
 
-			m_out.write(buf.data(), buf.size());
+			out.write(buf.data(), buf.size());
+			if (!out.good())
+				return false;
+
 			return true;
 		}
 
@@ -90,62 +125,95 @@ class packer {
 
 class unpacker {
 	public:
-		unpacker(const std::string &input) {
-			m_in.exceptions(m_in.failbit);
-			m_in.open(input.c_str(), std::ios::binary);
-		}
-
 		typedef std::function<bool (const entry &)> unpack_process;
-		void unpack(const unpack_process &process) {
-			msgpack::unpacker pac;
 
-			try {
-				timer t, total;
-				long num = 0;
-				long chunk = 100000;
-				long duration;
+		unpacker(const std::vector<std::string> &inputs, int thread_num, const unpack_process &process) : m_total(0) {
+			timer t;
 
-				while (true) {
-					pac.reserve_buffer(1024 * 1024);
-					size_t bytes = m_in.readsome(pac.buffer(), pac.buffer_capacity());
+			std::vector<std::thread> pool;
+			pool.reserve(thread_num);
 
-					if (!bytes)
-						break;
-					pac.buffer_consumed(bytes);
+			for (int i = 0; i < thread_num; ++i) {
+				std::vector<std::string> in;
 
-					msgpack::unpacked result;
-					while (pac.next(&result)) {
-						msgpack::object obj = result.get();
+				for (size_t j = i; j < inputs.size(); j += thread_num)
+					in.push_back(inputs[j]);
 
-						entry e;
-						obj.convert<entry>(&e);
-
-						if (!process(e))
-							return;
-
-						if ((++num % chunk) == 0) {
-							duration = t.restart();
-							std::cout << "Read objects: " << num <<
-								", elapsed time: " << total.elapsed() << " msecs" <<
-								", speed: " << chunk * 1000 / duration << " objs/sec" <<
-								std::endl;
-						}
-					}
-				}
-
-				duration = total.elapsed();
-				std::cout << "Read objects: " << num <<
-					", elapsed time: " << duration << " msecs" <<
-					", speed: " << num * 1000 / duration << " objs/sec" <<
-					std::endl;
-
-			} catch (const std::exception &e) {
-				std::cerr << "Exception: " << e.what() << std::endl;
+				pool.emplace_back(std::bind(&unpacker::unpack, this, in, process));
 			}
+
+			for (auto th = pool.begin(); th != pool.end(); ++th)
+				th->join();
+
+			std::cout << "Threads: " << thread_num <<
+				", read objects: " << m_total <<
+				", elapsed time: " << t.elapsed() << " msecs" <<
+				", speed: " << m_total * 1000 / t.elapsed() << " objs/sec" <<
+				std::endl;
 		}
 
 	private:
-		std::ifstream m_in;
+		std::atomic_long m_total;
+
+		void unpack(const std::vector<std::string> &inputs, const unpack_process &process) {
+			timer total, t;
+
+			long num = 0;
+			long chunk = 100000;
+			long duration;
+
+			for (auto it = inputs.begin(); it != inputs.end(); ++it) {
+				try {
+					msgpack::unpacker pac;
+
+					std::ifstream in(*it, std::ios::binary);
+
+					std::ostringstream ss;
+					ss << "Opened file '" << *it << "'\n";
+					std::cout << ss.str();
+
+					while (true) {
+						pac.reserve_buffer(1024 * 1024);
+						size_t bytes = in.readsome(pac.buffer(), pac.buffer_capacity());
+
+						if (!bytes)
+							break;
+						pac.buffer_consumed(bytes);
+
+						msgpack::unpacked result;
+						while (pac.next(&result)) {
+							msgpack::object obj = result.get();
+
+							entry e;
+							obj.convert<entry>(&e);
+
+							if (!process(e))
+								return;
+
+							if ((++num % chunk) == 0) {
+								duration = t.restart();
+								std::cout << "Read objects: " << num <<
+									", elapsed time: " << total.elapsed() << " msecs" <<
+									", speed: " << chunk * 1000 / duration << " objs/sec" <<
+									std::endl;
+							}
+
+							++m_total;
+						}
+					}
+
+				} catch (const std::exception &e) {
+					std::cerr << "Exception: " << e.what() << std::endl;
+				}
+			}
+
+			duration = total.elapsed();
+			std::cout << "Read objects: " << num <<
+				", elapsed time: " << duration << " msecs" <<
+				", speed: " << num * 1000 / duration << " objs/sec" <<
+				std::endl;
+
+		}
 };
 
 }} // namespace ioremap::warp

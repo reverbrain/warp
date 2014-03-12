@@ -31,14 +31,13 @@ namespace ioremap { namespace warp {
 
 class spell {
 	public:
-		spell(int ngram, const std::string &path) : m_fuzzy(ngram) {
+		spell(int ngram, const std::vector<std::string> &path) : m_fuzzy(ngram) {
 			timer tm;
 
-			warp::unpacker unpack(path);
 #ifdef LOAD_ROOTS
-			unpack.unpack(std::bind(&spell::unpack_roots, this, std::placeholders::_1));
+			warp::unpacker(path, 2, std::bind(&spell::unpack_roots, this, std::placeholders::_1));
 #else
-			unpack.unpack(std::bind(&spell::unpack_everything, this, std::placeholders::_1));
+			warp::unpacker(path, 2, std::bind(&spell::unpack_everything, this, std::placeholders::_1));
 #endif
 
 			printf("spell checker loaded: words: %zd, time: %lld ms\n",

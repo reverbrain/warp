@@ -24,11 +24,13 @@ int main(int argc, char *argv[])
 
 	bpo::options_description generic("Parser options");
 
+	int output_num;
 	std::string input, output, msgin, gram;
 	generic.add_options()
 		("help", "This help message")
 		("input", bpo::value<std::string>(&input)->required(), "Input Zaliznyak dictionary file")
 		("output", bpo::value<std::string>(&output)->required(), "Output msgpack file")
+		("output-num", bpo::value<int>(&output_num)->default_value(1), "Number of output msgpack files")
 		;
 
 	bpo::positional_options_description p;
@@ -61,7 +63,7 @@ int main(int argc, char *argv[])
 
 	namespace iw = ioremap::warp;
 
-	iw::packer pack(output);
+	iw::packer pack(output, output_num);
 	iw::zparser records;
 	records.set_process(std::bind(&iw::packer::zprocess, &pack, std::placeholders::_1, std::placeholders::_2));
 	records.parse_file(input);

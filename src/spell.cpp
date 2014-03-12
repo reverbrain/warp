@@ -11,11 +11,11 @@ int main(int argc, char *argv[])
 	bpo::options_description generic("Fuzzy search tool options");
 
 	int num;
-	std::string enc_dir, msgin;
+	std::string enc_dir;
 	generic.add_options()
 		("help", "This help message")
 		("ngram", bpo::value<int>(&num)->default_value(3), "Number of symbols in each ngram")
-		("msgpack-input", bpo::value<std::string>(&msgin), "Packed Zaliznyak dictionary file")
+		("msgpack", "Whether files are msgpack packed Zaliznyak dictionary files")
 		("encoding-dir", bpo::value<std::string>(&enc_dir), "Load encodings from given wookie directory")
 		;
 
@@ -49,14 +49,14 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	if (!files.size() && !msgin.size()) {
-		std::cerr << "There is no input files nor packed input\n" << generic << "\n" << hidden << std::endl;
+	if (!files.size()) {
+		std::cerr << "There are no input files\n" << generic << "\n" << hidden << std::endl;
 		return -1;
 	}
 
 	try {
-		if (msgin.size()) {
-			warp::spell sp(num, msgin);
+		if (vm.count("msgpack")) {
+			warp::spell sp(num, files);
 			sp.search(text);
 		} else {
 			warp::fuzzy f(num);
