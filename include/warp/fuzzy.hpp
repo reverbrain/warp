@@ -21,6 +21,7 @@
 #include "warp/ngram.hpp"
 
 #include <algorithm>
+#include <mutex>
 #include <vector>
 
 namespace ioremap { namespace warp {
