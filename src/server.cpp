@@ -205,7 +205,7 @@ public:
 			path.push_back(input.GetString());
 		}
 
-		m_lex.load(3, path, true);
+		m_lex.load(3, path);
 
 		this->logger().log(swarm::SWARM_LOG_INFO, "grammar::request: data from %s (and other files) has been loaded", path[0].c_str());
 
