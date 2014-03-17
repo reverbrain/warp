@@ -93,7 +93,7 @@ class fuzzy {
 			for (auto wc = word_count.begin(); wc != word_count.end(); ++wc) {
 				ngram::ncount<lstring> nc;
 				nc.word = wc->first;
-				nc.count = 1.0 / (double)wc->first.size();
+				nc.count = (double)(wc->second + 1) / (double)wc->first.size();
 
 				if (nc.count >= 0.01)
 					counts.emplace_back(nc);
