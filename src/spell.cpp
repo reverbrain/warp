@@ -12,9 +12,12 @@ int main(int argc, char *argv[])
 
 	int num;
 	std::string enc_dir;
+	bool use_roots;
+
 	generic.add_options()
 		("help", "This help message")
 		("ngram", bpo::value<int>(&num)->default_value(3), "Number of symbols in each ngram")
+		("use-roots", "Load word roots only, lookup is performed in 2 steps: within tree or roots and then within their endings")
 		("msgpack", "Whether files are msgpack packed Zaliznyak dictionary files")
 		("encoding-dir", bpo::value<std::string>(&enc_dir), "Load encodings from given wookie directory")
 		;
@@ -54,9 +57,11 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	use_roots = !!vm.count("use-roots");
+
 	try {
 		if (vm.count("msgpack")) {
-			warp::spell sp(num, files);
+			warp::spell sp(num, files, use_roots);
 			sp.search(text);
 		} else {
 			warp::fuzzy f(num);

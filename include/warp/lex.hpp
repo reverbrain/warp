@@ -17,10 +17,10 @@
 #ifndef __IOREMAP_WARP_LEX_HPP
 #define __IOREMAP_WARP_LEX_HPP
 
+#include "warp/spell.hpp"
+
 #include <boost/locale.hpp>
 #include <boost/algorithm/string.hpp>
-
-#include "pack.hpp"
 
 namespace lb = boost::locale::boundary;
 
@@ -63,8 +63,8 @@ class lex {
 
 		lex(const std::locale &loc) : m_loc(loc) {}
 
-		void load(const std::vector<std::string> &path) {
-			unpacker(path, 2, std::bind(&lex::unpack_process, this, std::placeholders::_1));
+		void load(int ngram, const std::vector<std::string> &path, bool use_roots) {
+			m_spell.reset(new spell(ngram, path, use_roots));
 		}
 
 		std::vector<grammar> generate(const std::vector<std::string> &grams) {
@@ -185,6 +185,9 @@ class lex {
 		}
 
 		std::string root(const std::string &word) {
+			auto ret = m_spell->search(word);
+			if (ret.size())
+				return lconvert::to_string(ret[0]);
 			return word;
 		}
 
@@ -220,10 +223,7 @@ class lex {
 
 	private:
 		std::locale m_loc;
-
-		bool unpack_process(const entry &e) {
-			return false;
-		}
+		std::auto_ptr<warp::spell> m_spell;
 
 		int bits_set(parsed_word::feature_mask tmp) {
 			int pos;

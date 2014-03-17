@@ -27,18 +27,15 @@
 
 namespace ioremap { namespace warp {
 
-#define LOAD_ROOTS
-
 class spell {
 	public:
-		spell(int ngram, const std::vector<std::string> &path) : m_fuzzy(ngram) {
+		spell(int ngram, const std::vector<std::string> &path, bool load_roots) : m_fuzzy(ngram), m_use_roots(load_roots) {
 			timer tm;
 
-#ifdef LOAD_ROOTS
-			warp::unpacker(path, 2, std::bind(&spell::unpack_roots, this, std::placeholders::_1));
-#else
-			warp::unpacker(path, 2, std::bind(&spell::unpack_everything, this, std::placeholders::_1));
-#endif
+			if (load_roots)
+				warp::unpacker(path, 2, std::bind(&spell::unpack_roots, this, std::placeholders::_1));
+			else
+				warp::unpacker(path, 2, std::bind(&spell::unpack_everything, this, std::placeholders::_1));
 
 			printf("spell checker loaded: words: %zd, time: %lld ms\n",
 					m_fe.size(), (unsigned long long)tm.elapsed());
@@ -55,11 +52,10 @@ class spell {
 
 			std::vector<lstring> ret;
 
-#ifdef LOAD_ROOTS
-			ret = search_roots(t, fsearch);
-#else
-			ret = search_everything(t, fsearch);
-#endif
+			if (m_use_roots)
+				ret = search_roots(t, fsearch);
+			else
+				ret = search_everything(t, fsearch);
 
 			printf("spell checker lookup: checked: words: %zd, total-search-time: %lld ms:\n",
 					ret.size(), (unsigned long long)tm.restart());
@@ -72,6 +68,7 @@ class spell {
 	private:
 		std::map<lstring, std::vector<warp::feature_ending>> m_fe;
 		fuzzy m_fuzzy;
+		bool m_use_roots;
 
 		bool unpack_roots(const warp::entry &e) {
 			lstring tmp = lconvert::from_utf8(e.root);

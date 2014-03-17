@@ -19,12 +19,20 @@
 
 #include "warp/lstring.hpp"
 #include "warp/ngram.hpp"
+#include "warp/timer.hpp"
 
 #include <algorithm>
 #include <mutex>
 #include <vector>
 
 namespace ioremap { namespace warp {
+
+struct ngram_data {
+	lstring word;
+	int ngram_pos;
+
+	ngram_data() : ngram_pos(0) {}
+};
 
 class fuzzy {
 	public:
@@ -44,7 +52,7 @@ class fuzzy {
 
 		void feed_word(const lstring &word) {
 			std::unique_lock<std::mutex> guard(m_lock);
-			m_ngram.load(word, word);
+			m_ngram.load(word);
 		}
 
 		std::vector<ngram::ncount<lstring>> search(const std::string &text) {
@@ -53,33 +61,51 @@ class fuzzy {
 		}
 
 		std::vector<ngram::ncount<lstring>> search(const lstring &text) {
-			auto ngrams = ngram::ngram<lstring, lstring>::split(text, m_ngram.n());
+			timer tm, total;
+
+			auto ngrams = ngram::ngram<lstring>::split(text, m_ngram.n());
 
 			std::map<lstring, int> word_count;
+			int prev_pos = 0;
 
 			for (auto it = ngrams.begin(); it != ngrams.end(); ++it) {
 				auto tmp = m_ngram.lookup_word(*it);
 
-				for (auto word = tmp.begin(); word != tmp.end(); ++word) {
-					auto wc = word_count.find(*word);
-					if (wc == word_count.end())
-						word_count[*word] = 1;
-					else
-						wc->second++;
+				for (auto ndata = tmp.begin(); ndata != tmp.end(); ++ndata) {
+					auto wc = word_count.find(ndata->word);
+					if (wc == word_count.end()) {
+						word_count[ndata->word] = ndata->pos;
+					} else {
+						if ((wc->second < ndata->pos) && (wc->second + m_ngram.n() >= ndata->pos)) {
+							wc->second = ndata->pos;
+						} else {
+							word_count.erase(wc);
+						}
+					}
 				}
+
+				prev_pos++;
 			}
+
+			long lookup_time = tm.restart();
 
 			std::vector<ngram::ncount<lstring>> counts;
 			for (auto wc = word_count.begin(); wc != word_count.end(); ++wc) {
 				ngram::ncount<lstring> nc;
 				nc.word = wc->first;
-				nc.count = (double)wc->second / (double)wc->first.size();
+				nc.count = 1.0 / (double)wc->first.size();
 
-				if (nc.count > 0.01)
+				if (nc.count >= 0.01)
 					counts.emplace_back(nc);
 			}
 
+			long count_time = tm.restart();
+
 			std::sort(counts.begin(), counts.end());
+
+			long sort_time = tm.restart();
+
+			std::cout << text << ": lookup: " << lookup_time << " ms, count: " << count_time << " ms, sort: " << sort_time << " ms, total: " << total.elapsed() << " ms" << std::endl;
 #if 0
 			std::cout << text << "\n";
 			for (auto nc = counts.begin(); nc != counts.end(); ++nc) {
@@ -90,7 +116,7 @@ class fuzzy {
 		}
 
 	private:
-		ngram::ngram<lstring, lstring> m_ngram;
+		ngram::ngram<lstring> m_ngram;
 		std::mutex m_lock;
 };
 
