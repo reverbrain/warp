@@ -96,6 +96,9 @@ class spell {
 
 			ret.reserve(fsearch.size() / 4);
 			for (auto w = fsearch.begin(); w != fsearch.end(); ++w) {
+				if (w->word.size() >= t.size() + 3)
+					continue;
+
 				const auto & fe = m_fe.find(w->word);
 				if (fe != m_fe.end()) {
 					std::set<std::string> checked_endings;
