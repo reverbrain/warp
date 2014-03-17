@@ -34,8 +34,8 @@ class spell {
 
 			warp::unpacker(path, 2, std::bind(&spell::unpack_roots, this, std::placeholders::_1));
 
-			printf("spell checker loaded: words: %zd, time: %lld ms\n",
-					m_fe.size(), (unsigned long long)tm.elapsed());
+			printf("spell checker loaded: words: %ld, roots: %ld, time: %lld ms\n",
+					m_words.load(), m_roots.load(), (unsigned long long)tm.elapsed());
 		}
 
 		std::vector<lstring> search(const std::string &text) {
@@ -62,11 +62,15 @@ class spell {
 	private:
 		std::map<lstring, std::vector<warp::feature_ending>> m_fe;
 		fuzzy m_fuzzy;
+		std::atomic_long m_roots, m_words;
 
 		bool unpack_roots(const warp::entry &e) {
 			lstring tmp = lconvert::from_utf8(e.root);
 			m_fe[tmp] = e.fe;
 			m_fuzzy.feed_word(tmp);
+
+			m_roots++;
+			m_words += e.fe.size();
 			return true;
 		}
 
@@ -75,6 +79,9 @@ class spell {
 				std::string word = e.root + f->ending;
 				m_fuzzy.feed_text(word);
 			}
+
+			m_roots += e.fe.size();
+			m_words += e.fe.size();
 			return true;
 		}
 
