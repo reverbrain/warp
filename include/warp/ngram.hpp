@@ -38,13 +38,21 @@ struct ncount {
 	}
 };
 
-template <typename S, typename D>
+template <typename S>
 class ngram {
+
 	struct ngram_data {
-		std::vector<D> data;
+		S word;
+		int pos;
+
+		ngram_data() : pos(0) {}
+	};
+
+	struct ngram_meta {
+		std::vector<ngram_data> data;
 		double count;
 
-		ngram_data() : count(1.0) {}
+		ngram_meta() : count(1.0) {}
 	};
 
 	public:
@@ -63,14 +71,21 @@ class ngram {
 			return ret;
 		}
 
-		void load(const S &text, const D &data) {
-			std::vector<S> grams = ngram<S, D>::split(text, m_n);
+		void load(const S &text) {
+			std::vector<S> grams = ngram<S>::split(text, m_n);
+			int position = 0;
+
 			for (auto word = grams.begin(); word != grams.end(); ++word) {
+				ngram_data data;
+				data.word = text;
+				data.pos = position++;
+
 				auto it = m_map.find(*word);
 				if (it == m_map.end()) {
-					ngram_data d;
-					d.data.push_back(data);
-					m_map[*word] = d;
+					ngram_meta meta;
+
+					meta.data.push_back(data);
+					m_map[*word] = meta;
 				} else {
 					it->second.count++;
 					it->second.data.push_back(data);
@@ -78,8 +93,8 @@ class ngram {
 			}
 		}
 
-		std::vector<D> lookup_word(const S &word) const {
-			std::vector<D> ret;
+		std::vector<ngram_data> lookup_word(const S &word) const {
+			std::vector<ngram_data> ret;
 
 			auto it = m_map.find(word);
 			if (it != m_map.end())
@@ -109,10 +124,10 @@ class ngram {
 
 	private:
 		int m_n;
-		std::map<S, ngram_data> m_map;
+		std::map<S, ngram_meta> m_map;
 };
 
-typedef ngram<std::string, int> byte_ngram;
+typedef ngram<std::string> byte_ngram;
 
 class probability {
 	public:
@@ -125,8 +140,8 @@ class probability {
 
 			std::string text = ss.str();
 
-			m_n2.load(text, 0);
-			m_n3.load(text, 0);
+			m_n2.load(text);
+			m_n3.load(text);
 #if 0
 			printf("%s: loaded: %zd bytes, 2-grams: %zd, 3-grams: %zd\n",
 					filename, text.size(), m_n2.num(), m_n3.num());

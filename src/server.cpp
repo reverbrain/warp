@@ -194,10 +194,20 @@ public:
 			return false;
 		}
 
-		std::string path = config["msgpack-input"].GetString();
-		m_lex.load(path);
+		std::vector<std::string> path;
 
-		this->logger().log(swarm::SWARM_LOG_INFO, "grammar::request: data from %s has been loaded", path.c_str());
+		const auto & input = config["msgpack-input"];
+		if (input.IsArray()) {
+			for (rapidjson::Value::ConstValueIterator it = input.Begin(); it != input.End(); ++it) {
+				path.push_back(it->GetString());
+			}
+		} else {
+			path.push_back(input.GetString());
+		}
+
+		m_lex.load(3, path);
+
+		this->logger().log(swarm::SWARM_LOG_INFO, "grammar::request: data from %s (and other files) has been loaded", path[0].c_str());
 
 		on<on_grammar<http_server>>(
 			options::exact_match("/grammar"),

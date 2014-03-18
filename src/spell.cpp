@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
 
 	int num;
 	std::string enc_dir;
+
 	generic.add_options()
 		("help", "This help message")
 		("ngram", bpo::value<int>(&num)->default_value(3), "Number of symbols in each ngram")

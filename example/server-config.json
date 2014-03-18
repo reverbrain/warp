@@ -18,6 +18,9 @@
     },
     "monitor-port": 20000,
     "application": {
-	"msgpack-input" : "/opt/disk/tmp/zal.msgpack"
+	"msgpack-input" : [
+			"/home/zbr/awork/warp/data/zal.msgpack.0",  "/home/zbr/awork/warp/data/zal.msgpack.1",
+			"/home/zbr/awork/warp/data/zal.msgpack.2",  "/home/zbr/awork/warp/data/zal.msgpack.3"
+		]		
     }
 }
