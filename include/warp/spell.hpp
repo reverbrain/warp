@@ -32,7 +32,7 @@ class spell {
 		spell(int ngram, const std::vector<std::string> &path) : m_fuzzy(ngram) {
 			timer tm;
 
-			warp::unpacker(path, 2, std::bind(&spell::unpack_roots, this, std::placeholders::_1));
+			warp::unpacker(path, 2, std::bind(&spell::unpack_everything, this, std::placeholders::_1));
 
 			printf("spell checker loaded: words: %ld, roots: %ld, time: %lld ms\n",
 					m_words.load(), m_roots.load(), (unsigned long long)tm.elapsed());
@@ -49,7 +49,7 @@ class spell {
 
 			std::vector<lstring> ret;
 
-			ret = search_roots(t, fsearch);
+			ret = search_everything(t, fsearch);
 
 			printf("spell checker lookup: checked: words: %zd, total-search-time: %lld ms:\n",
 					ret.size(), (unsigned long long)tm.restart());
@@ -64,16 +64,6 @@ class spell {
 		fuzzy m_fuzzy;
 		std::atomic_long m_roots, m_words;
 
-		bool unpack_roots(const warp::entry &e) {
-			lstring tmp = lconvert::from_utf8(e.root);
-			m_fe[tmp] = e.fe;
-			m_fuzzy.feed_word(tmp);
-
-			m_roots++;
-			m_words += e.fe.size();
-			return true;
-		}
-
 		bool unpack_everything(const warp::entry &e) {
 			for (auto f = e.fe.begin(); f != e.fe.end(); ++f) {
 				std::string word = e.root + f->ending;
@@ -83,54 +73,6 @@ class spell {
 			m_roots += e.fe.size();
 			m_words += e.fe.size();
 			return true;
-		}
-
-		std::vector<lstring> search_roots(const lstring &t, const std::vector<ngram::ncount<lstring>> &fsearch) {
-			timer tm;
-
-			std::vector<lstring> ret;
-			int min_dist = 1024;
-
-			long total_endings = 0;
-			long total_words = 0;
-
-			ret.reserve(fsearch.size() / 4);
-			for (auto w = fsearch.begin(); w != fsearch.end(); ++w) {
-				if (w->word.size() >= t.size() + 3)
-					continue;
-
-				const auto & fe = m_fe.find(w->word);
-				if (fe != m_fe.end()) {
-					std::set<std::string> checked_endings;
-
-					for (auto ending = fe->second.begin(); ending != fe->second.end(); ++ending) {
-						auto tmp_end = checked_endings.find(ending->ending);
-						if (tmp_end != checked_endings.end())
-							continue;
-
-						checked_endings.insert(ending->ending);
-						lstring word = w->word + lconvert::from_utf8(ending->ending);
-
-						int dist = distance::levenstein<lstring>(t, word);
-						if (dist <= min_dist) {
-							if (dist < min_dist)
-								ret.clear();
-
-							ret.emplace_back(word);
-							min_dist = dist;
-						}
-
-						total_endings++;
-					}
-					total_words++;
-				}
-			}
-
-			printf("spell checker lookup: checked endings: roots: %ld, endings: %ld, dist: %d, time: %lld ms:\n",
-					total_words, total_endings,
-					min_dist, (unsigned long long)tm.restart());
-
-			return ret;
 		}
 
 		std::vector<lstring> search_everything(const lstring &t, const std::vector<ngram::ncount<lstring>> &fsearch) {
