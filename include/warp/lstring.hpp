@@ -30,11 +30,12 @@ static const boost::locale::generator __fuzzy_locale_generator;
 static const std::locale __fuzzy_locale(__fuzzy_locale_generator("en_US.UTF8"));
 static const auto __fuzzy_utf8_converter = boost::locale::util::create_utf8_converter();
 
+template <typename T>
 struct letter {
-	unsigned int	l;
+	T l;
 
 	letter() : l(0) {}
-	letter(unsigned int _l) : l(_l) {}
+	letter(const T &_l) : l(_l) {}
 	letter(const letter &other) {
 		l = other.l;
 	}
@@ -52,15 +53,16 @@ struct letter {
 	}
 };
 
-inline std::ostream &operator <<(std::ostream &out, const letter &l)
+inline std::ostream &operator <<(std::ostream &out, const letter<unsigned int> &l)
 {
 	out << l.str();
 	return out;
 }
 
+template <typename T>
 struct letter_traits {
-	typedef letter char_type;
-	typedef letter int_type;
+	typedef letter<T> char_type;
+	typedef letter<T> int_type;
 	typedef std::streampos pos_type;
 	typedef std::streamoff off_type;
 	typedef std::mbstate_t state_type;
@@ -147,7 +149,7 @@ struct letter_traits {
 	}
 };
 
-typedef std::basic_string<letter, letter_traits> lstring;
+typedef std::basic_string<letter<unsigned int>, letter_traits<unsigned int>> lstring;
 
 inline std::ostream &operator <<(std::ostream &out, const lstring &ls)
 {
@@ -175,7 +177,7 @@ class lconvert {
 				const char *ptr = str.c_str();
 				auto code = __fuzzy_utf8_converter->to_unicode(ptr, ptr + str.size());
 
-				letter l(code);
+				letter<unsigned int> l(code);
 				ret.append(&l, 1);
 			}
 
