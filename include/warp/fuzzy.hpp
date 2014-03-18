@@ -66,25 +66,24 @@ class fuzzy {
 			auto ngrams = ngram::ngram<lstring>::split(text, m_ngram.n());
 
 			std::map<lstring, int> word_count;
-			int prev_pos = 0;
 
 			for (auto it = ngrams.begin(); it != ngrams.end(); ++it) {
 				auto tmp = m_ngram.lookup_word(*it);
 
 				for (auto ndata = tmp.begin(); ndata != tmp.end(); ++ndata) {
+					if (ndata->word.size() > text.size() + 2)
+						continue;
+
+					if (text.size() > ndata->word.size())
+						continue;
+
 					auto wc = word_count.find(ndata->word);
 					if (wc == word_count.end()) {
-						word_count[ndata->word] = ndata->pos;
+						word_count[ndata->word] = 1;
 					} else {
-						if ((wc->second < ndata->pos) && (wc->second + m_ngram.n() >= ndata->pos)) {
-							wc->second = ndata->pos;
-						} else {
-							word_count.erase(wc);
-						}
+						wc->second++;
 					}
 				}
-
-				prev_pos++;
 			}
 
 			long lookup_time = tm.restart();
@@ -95,17 +94,12 @@ class fuzzy {
 				nc.word = wc->first;
 				nc.count = (double)(wc->second + 1) / (double)wc->first.size();
 
-				if (nc.count >= 0.01)
-					counts.emplace_back(nc);
+				counts.emplace_back(nc);
 			}
 
 			long count_time = tm.restart();
 
-			std::sort(counts.begin(), counts.end());
-
-			long sort_time = tm.restart();
-
-			std::cout << text << ": lookup: " << lookup_time << " ms, count: " << count_time << " ms, sort: " << sort_time << " ms, total: " << total.elapsed() << " ms" << std::endl;
+			std::cout << text << ": lookup: " << lookup_time << " ms, count: " << count_time << " ms, total: " << total.elapsed() << " ms" << std::endl;
 #if 0
 			std::cout << text << "\n";
 			for (auto nc = counts.begin(); nc != counts.end(); ++nc) {
