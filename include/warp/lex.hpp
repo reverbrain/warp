@@ -64,7 +64,8 @@ class lex {
 		lex(const std::locale &loc) : m_loc(loc) {}
 
 		void load(int ngram, const std::vector<std::string> &path) {
-			m_spell.reset(new spell(ngram, path));
+			m_spell.reset(new spell(ngram));
+			m_spell->feed_dict(path);
 		}
 
 		std::vector<grammar> generate(const std::vector<std::string> &grams) {

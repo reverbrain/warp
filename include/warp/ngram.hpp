@@ -28,28 +28,28 @@
 #include <math.h>
 
 namespace ioremap { namespace warp { namespace ngram {
-template <typename S>
-struct ncount {
-	S	word;
-	double	count;
-
-	bool operator<(const struct ncount &other) const {
-		return count >= other.count;
-	}
-};
-
-template <typename S>
+template <typename S, typename D>
 class ngram {
-
 	struct ngram_data {
-		S word;
+		D data;
 		int pos;
 
 		ngram_data() : pos(0) {}
 	};
 
+	struct ngram_index_data {
+		size_t data_index;
+		int pos;
+
+		bool operator<(const ngram_index_data &other) const {
+			return data_index < other.data_index;
+		}
+
+		ngram_index_data() : data_index(0), pos(0) {}
+	};
+
 	struct ngram_meta {
-		std::vector<ngram_data> data;
+		std::set<ngram_index_data> data;
 		double count;
 
 		ngram_meta() : count(1.0) {}
@@ -71,24 +71,35 @@ class ngram {
 			return ret;
 		}
 
-		void load(const S &text) {
-			std::vector<S> grams = ngram<S>::split(text, m_n);
+		void load(const S &text, const D &d) {
+			std::vector<S> grams = ngram<S, D>::split(text, m_n);
 			int position = 0;
+			size_t index;
+
+			auto it = m_data_index.find(d);
+			if (it == m_data_index.end()) {
+				index = m_data.size();
+				m_data.push_back(d);
+
+				m_data_index[d] = index;
+			} else {
+				index = it->second;
+			}
 
 			for (auto word = grams.begin(); word != grams.end(); ++word) {
-				ngram_data data;
-				data.word = text;
+				ngram_index_data data;
+				data.data_index = index;
 				data.pos = position++;
 
 				auto it = m_map.find(*word);
 				if (it == m_map.end()) {
 					ngram_meta meta;
 
-					meta.data.push_back(data);
+					meta.data.insert(data);
 					m_map[*word] = meta;
 				} else {
 					it->second.count++;
-					it->second.data.push_back(data);
+					it->second.data.insert(data);
 				}
 			}
 		}
@@ -97,8 +108,16 @@ class ngram {
 			std::vector<ngram_data> ret;
 
 			auto it = m_map.find(word);
-			if (it != m_map.end())
-				ret = it->second.data;
+			if (it != m_map.end()) {
+				for (auto idx = it->second.data.begin(); idx != it->second.data.end(); ++idx) {
+					ngram_data data;
+
+					data.data = m_data[idx->data_index];
+					data.pos = idx->pos;
+
+					ret.emplace_back(data);
+				}
+			}
 
 			return ret;
 		}
@@ -125,9 +144,11 @@ class ngram {
 	private:
 		int m_n;
 		std::map<S, ngram_meta> m_map;
+		std::vector<D> m_data;
+		std::map<D, size_t> m_data_index;
 };
 
-typedef ngram<std::string> byte_ngram;
+typedef ngram<std::string, std::string> byte_ngram;
 
 class probability {
 	public:
@@ -140,8 +161,8 @@ class probability {
 
 			std::string text = ss.str();
 
-			m_n2.load(text);
-			m_n3.load(text);
+			m_n2.load(text, text);
+			m_n3.load(text, text);
 #if 0
 			printf("%s: loaded: %zd bytes, 2-grams: %zd, 3-grams: %zd\n",
 					filename, text.size(), m_n2.num(), m_n3.num());

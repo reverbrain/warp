@@ -29,13 +29,21 @@ namespace ioremap { namespace warp {
 
 class spell {
 	public:
-		spell(int ngram, const std::vector<std::string> &path) : m_fuzzy(ngram) {
+		spell(int ngram) : m_fuzzy(ngram) {}
+
+		void feed_dict(const std::vector<std::string> &path) {
 			timer tm;
 
 			warp::unpacker(path, 2, std::bind(&spell::unpack_everything, this, std::placeholders::_1));
 
 			printf("spell checker loaded: words: %ld, roots: %ld, time: %lld ms\n",
 					m_words.load(), m_roots.load(), (unsigned long long)tm.elapsed());
+		}
+
+		void feed_word(const std::string &word) {
+			m_fuzzy.feed_word(lconvert::from_utf8(word), lconvert::from_utf8(word));
+			m_roots += 1;
+			m_words += 1;
 		}
 
 		std::vector<lstring> search(const std::string &text) {
@@ -61,33 +69,39 @@ class spell {
 
 	private:
 		std::map<lstring, std::vector<warp::feature_ending>> m_fe;
-		fuzzy m_fuzzy;
+		fuzzy<lstring> m_fuzzy;
 		std::atomic_long m_roots, m_words;
 
 		bool unpack_everything(const warp::entry &e) {
 			for (auto f = e.fe.begin(); f != e.fe.end(); ++f) {
 				std::string word = e.root + f->ending;
-				m_fuzzy.feed_text(word);
+				m_fuzzy.feed_word(lconvert::from_utf8(word), lconvert::from_utf8(e.root));
 			}
 
-			m_roots += e.fe.size();
+			m_roots += 1;
 			m_words += e.fe.size();
 			return true;
 		}
 
-		std::vector<lstring> search_everything(const lstring &t, const std::vector<ngram::ncount<lstring>> &fsearch) {
+		std::vector<lstring> search_everything(const lstring &t, const std::vector<lstring> &fsearch) {
 			std::vector<lstring> ret;
 			int min_dist = 1024;
 
 			ret.reserve(fsearch.size());
 
 			for (auto w = fsearch.begin(); w != fsearch.end(); ++w) {
-				int dist = distance::levenstein<lstring>(t, w->word);
+				if (w->size() > t.size() + 2)
+					continue;
+
+				if (t.size() > w->size())
+					continue;
+
+				int dist = distance::levenstein<lstring>(t, *w);
 				if (dist <= min_dist) {
 					if (dist < min_dist)
 						ret.clear();
 
-					ret.emplace_back(w->word);
+					ret.emplace_back(*w);
 					min_dist = dist;
 				}
 			}

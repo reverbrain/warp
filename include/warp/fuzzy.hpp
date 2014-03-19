@@ -27,90 +27,67 @@
 
 namespace ioremap { namespace warp {
 
-struct ngram_data {
-	lstring word;
-	int ngram_pos;
-
-	ngram_data() : ngram_pos(0) {}
-};
-
+template <typename D>
 class fuzzy {
 	public:
 		fuzzy(int num) : m_ngram(num) {}
 
-		void feed_text(const std::string &text) {
-			namespace lb = boost::locale::boundary;
-
-			lb::ssegment_index wmap(lb::word, text.begin(), text.end(), __fuzzy_locale);
-			wmap.rule(lb::word_any);
-
-			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
-				lstring word = lconvert::from_utf8(boost::locale::to_lower(it->str(), __fuzzy_locale));
-				feed_word(word);
-			}
-		}
-
-		void feed_word(const lstring &word) {
+		void feed_word(const lstring &word, const D &d) {
 			std::unique_lock<std::mutex> guard(m_lock);
-			m_ngram.load(word);
+			m_ngram.load(word, d);
 		}
 
-		std::vector<ngram::ncount<lstring>> search(const std::string &text) {
+		std::vector<D> search(const std::string &text) {
 			lstring t = lconvert::from_utf8(boost::locale::to_lower(text, __fuzzy_locale));
 			return search(t);
 		}
 
-		std::vector<ngram::ncount<lstring>> search(const lstring &text) {
+		std::vector<D> search(const lstring &text) {
 			timer tm, total;
 
-			auto ngrams = ngram::ngram<lstring>::split(text, m_ngram.n());
+			auto ngrams = ngram::ngram<lstring, D>::split(text, m_ngram.n());
 
-			std::map<lstring, int> word_count;
+			std::map<D, int> word_count;
 
 			for (auto it = ngrams.begin(); it != ngrams.end(); ++it) {
 				auto tmp = m_ngram.lookup_word(*it);
 
 				for (auto ndata = tmp.begin(); ndata != tmp.end(); ++ndata) {
-					if (ndata->word.size() > text.size() + 2)
-						continue;
 
-					if (text.size() > ndata->word.size())
-						continue;
-
-					auto wc = word_count.find(ndata->word);
+					auto wc = word_count.find(ndata->data);
 					if (wc == word_count.end()) {
-						word_count[ndata->word] = 1;
+						word_count[ndata->data] = 1;
 					} else {
 						wc->second++;
 					}
 				}
+				std::cout << std::endl;
 			}
 
 			long lookup_time = tm.restart();
 
-			std::vector<ngram::ncount<lstring>> counts;
-			for (auto wc = word_count.begin(); wc != word_count.end(); ++wc) {
-				ngram::ncount<lstring> nc;
-				nc.word = wc->first;
-				nc.count = (double)(wc->second + 1) / (double)wc->first.size();
+			std::vector<D> counts;
 
-				counts.emplace_back(nc);
+			for (auto wc = word_count.begin(); wc != word_count.end(); ++wc) {
+				double tmp = (double)wc->second / (double)wc->first.size();
+				if (tmp > 0.01) {
+					counts.emplace_back(wc->first);
+				}
 			}
 
 			long count_time = tm.restart();
 
-			std::cout << text << ": lookup: " << lookup_time << " ms, count: " << count_time << " ms, total: " << total.elapsed() << " ms" << std::endl;
+			std::cout << text << ": counts: " << counts.size() << ", lookup: " << lookup_time << " ms, count: " << count_time << " ms, total: " << total.elapsed() << " ms" << std::endl;
 #if 0
 			std::cout << text << "\n";
 			for (auto nc = counts.begin(); nc != counts.end(); ++nc) {
-				std::cout << nc->word << ": " << nc->count << std::endl;
 			}
 #endif
 			return counts;
 		}
 
 	private:
-		ngram::ngram<lstring> m_ngram;
+		ngram::ngram<lstring, D> m_ngram;
 		std::mutex m_lock;
 };
 

@@ -1,3 +1,4 @@
+#include "warp/lstring.hpp"
 #include "warp/spell.hpp"
 
 #include <boost/program_options.hpp>
@@ -11,13 +12,11 @@ int main(int argc, char *argv[])
 	bpo::options_description generic("Fuzzy search tool options");
 
 	int num;
-	std::string enc_dir;
 
 	generic.add_options()
 		("help", "This help message")
 		("ngram", bpo::value<int>(&num)->default_value(3), "Number of symbols in each ngram")
 		("msgpack", "Whether files are msgpack packed Zaliznyak dictionary files")
-		("encoding-dir", bpo::value<std::string>(&enc_dir), "Load encodings from given wookie directory")
 		;
 
 	bpo::positional_options_description p;
@@ -56,12 +55,11 @@ int main(int argc, char *argv[])
 	}
 
 	try {
-		if (vm.count("msgpack")) {
-			warp::spell sp(num, files);
-			sp.search(text);
-		} else {
-			warp::fuzzy f(num);
+		warp::spell sp(num);
 
+		if (vm.count("msgpack")) {
+			sp.feed_dict(files);
+		} else {
 			for (auto file = files.begin(); file != files.end(); ++file) {
 				std::ifstream in(file->c_str());
 				if (in.bad()) {
@@ -75,11 +73,20 @@ int main(int argc, char *argv[])
 
 				std::string text = ss.str();
 
-				f.feed_text(text);
-			}
+				namespace lb = boost::locale::boundary;
 
-			f.search(text);
+				lb::ssegment_index wmap(lb::word, text.begin(), text.end(), warp::__fuzzy_locale);
+				wmap.rule(lb::word_any);
+
+				for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
+					std::string word = boost::locale::to_lower(it->str(), warp::__fuzzy_locale);
+
+					sp.feed_word(word);
+				}
+			}
 		}
+
+		sp.search(text);
 	} catch (const std::exception &e) {
 		std::cerr << "Exception: " << e.what() << std::endl;
 		return -1;
