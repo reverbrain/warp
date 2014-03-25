@@ -61,7 +61,6 @@ class fuzzy {
 						wc->second++;
 					}
 				}
-				std::cout << std::endl;
 			}
 
 			long lookup_time = tm.restart();
@@ -69,10 +68,7 @@ class fuzzy {
 			std::vector<D> counts;
 
 			for (auto wc = word_count.begin(); wc != word_count.end(); ++wc) {
-				double tmp = (double)wc->second / (double)wc->first.size();
-				if (tmp > 0.01) {
-					counts.emplace_back(wc->first);
-				}
+				counts.emplace_back(wc->first);
 			}
 
 			long count_time = tm.restart();
