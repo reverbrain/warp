@@ -29,7 +29,7 @@ namespace ioremap { namespace warp {
 
 class spell {
 	public:
-		spell(int ngram) : m_fuzzy(ngram) {}
+		spell(int ngram) : m_fuzzy(ngram), m_roots(0), m_words(0) {}
 
 		void feed_dict(const std::vector<std::string> &path) {
 			timer tm;
@@ -75,7 +75,7 @@ class spell {
 		bool unpack_everything(const warp::entry &e) {
 			for (auto f = e.fe.begin(); f != e.fe.end(); ++f) {
 				std::string word = e.root + f->ending;
-				m_fuzzy.feed_word(lconvert::from_utf8(word), lconvert::from_utf8(e.root));
+				m_fuzzy.feed_word(lconvert::from_utf8(word), lconvert::from_utf8(word));
 			}
 
 			m_roots += 1;
@@ -96,14 +96,15 @@ class spell {
 				if (t.size() > w->size())
 					continue;
 
-				int dist = distance::levenstein<lstring>(t, *w);
-				if (dist <= min_dist) {
-					if (dist < min_dist)
-						ret.clear();
+				int dist = distance::levenstein<lstring>(t, *w, min_dist);
+				if (dist < 0)
+					continue;
 
-					ret.emplace_back(*w);
-					min_dist = dist;
-				}
+				if (dist < min_dist)
+					ret.clear();
+
+				ret.emplace_back(*w);
+				min_dist = dist;
 			}
 
 			return ret;
