@@ -23,7 +23,7 @@
 namespace ioremap { namespace warp { namespace distance {
 
 template <typename S>
-static int levenstein(const S &s, const S &t) {
+static int levenstein(const S &s, const S &t, int min_dist) {
 	// degenerate cases
 	if (s == t)
 		return 0;
@@ -57,7 +57,16 @@ static int levenstein(const S &s, const S &t) {
 		}
 
 		// copy v1 (current row) to v0 (previous row) for next iteration
-		v0 = v1;
+		int dist = v1.size();
+		for (size_t i = 0; i < v1.size(); ++i) {
+			if (v1[i] < min_dist)
+				dist = v1[i];
+
+			v0[i] = v1[i];
+		}
+
+		if (dist > min_dist)
+			return -1;
 	}
 
 	return v1[t.size()];
