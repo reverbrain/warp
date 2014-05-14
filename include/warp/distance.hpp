@@ -59,7 +59,7 @@ static int levenstein(const S &s, const S &t, int min_dist) {
 		// copy v1 (current row) to v0 (previous row) for next iteration
 		int dist = v1.size();
 		for (size_t i = 0; i < v1.size(); ++i) {
-			if (v1[i] < min_dist)
+			if (v1[i] < dist)
 				dist = v1[i];
 
 			v0[i] = v1[i];
