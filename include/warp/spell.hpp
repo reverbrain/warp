@@ -73,19 +73,36 @@ class spell {
 		std::atomic_long m_roots, m_words;
 
 		bool unpack_everything(const warp::entry &e) {
+			long loaded = 0;
+#if 0
 			for (auto f = e.fe.begin(); f != e.fe.end(); ++f) {
 				std::string word = e.root + f->ending;
 				m_fuzzy.feed_word(lconvert::from_utf8(word), lconvert::from_utf8(word));
 			}
+#else
+			std::string word = e.root;
+			if (e.fe.size() != 0) {
+				word += e.fe[0].ending;
+				lstring lword = lconvert::from_utf8(word);
 
+				for (size_t i = 0; i < e.fe.size(); i += 10) {
+					m_fuzzy.feed_word(lconvert::from_utf8(e.root + e.fe[i].ending), lword);
+					loaded++;
+				}
+			} else {
+				lstring lword = lconvert::from_utf8(word);
+				m_fuzzy.feed_word(lword, lword);
+				loaded = 1;
+			}
+#endif
 			m_roots += 1;
-			m_words += e.fe.size();
+			m_words += loaded;
 			return true;
 		}
 
 		std::vector<lstring> search_everything(const lstring &t, const std::vector<lstring> &fsearch) {
 			std::vector<lstring> ret;
-			int min_dist = 1024;
+			int min_dist = 3;
 
 			ret.reserve(fsearch.size());
 
