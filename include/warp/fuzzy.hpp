@@ -73,12 +73,9 @@ class fuzzy {
 
 			long count_time = tm.restart();
 
-			std::cout << text << ": counts: " << counts.size() << ", lookup: " << lookup_time << " ms, count: " << count_time << " ms, total: " << total.elapsed() << " ms" << std::endl;
-#if 0
-			std::cout << text << "\n";
-			for (auto nc = counts.begin(); nc != counts.end(); ++nc) {
-			}
-#endif
+			std::cout << text << ": counts: " << counts.size() << ", lookup: " << lookup_time <<
+				" ms, count: " << count_time << " ms, total: " << total.elapsed() << " ms" << std::endl;
+
 			return counts;
 		}
 
