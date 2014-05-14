@@ -69,7 +69,11 @@ static int levenstein(const S &s, const S &t, int min_dist) {
 			return -1;
 	}
 
-	return v1[t.size()];
+	int dist = v1[t.size()];
+	if (dist > min_dist)
+		return -1;
+
+	return dist;
 }
 
 }}} // namespace ioremap::warp::distance
