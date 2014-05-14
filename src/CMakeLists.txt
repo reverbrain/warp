@@ -10,6 +10,12 @@ target_link_libraries(warp_spell
 	${MSGPACK_LIBRARIES}
 )
 
+add_executable(warp_stat stat.cpp)
+target_link_libraries(warp_stat
+	${Boost_LIBRARIES}
+	${MSGPACK_LIBRARIES}
+)
+
 option(THEVOID "Build thevoid server for lexical parsing" OFF)
 if (THEVOID)
 	add_executable(warp_server server.cpp)
