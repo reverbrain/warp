@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 
 	iw::packer pack(output, output_num);
 	iw::zparser records;
-	records.set_process(std::bind(&iw::packer::zprocess, &pack, std::placeholders::_1, std::placeholders::_2));
+	records.set_process(std::bind(&iw::packer::zprocess, &pack, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 	records.parse_file(input);
 
 	return 0;

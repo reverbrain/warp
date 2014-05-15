@@ -143,12 +143,12 @@ struct record {
 	std::vector<parsed_word>	forms;
 };
 
-static inline bool default_process(const std::string &, const struct parsed_word &) { return false; }
+static inline bool default_process(const std::string &, const std::string &, const struct parsed_word &) { return false; }
 
 class zparser {
 	public:
 		// return false if you want to stop further processing
-		typedef std::function<bool (const std::string &root, const struct parsed_word &rec)> zparser_process;
+		typedef std::function<bool (const std::string &lemma, const std::string &root, const struct parsed_word &rec)> zparser_process;
 		zparser() : m_total(0), m_process(default_process) {
 			boost::locale::generator gen;
 			m_loc = gen("en_US.UTF8");
@@ -170,7 +170,7 @@ class zparser {
 			return ret;
 		}
 
-		bool parse_dict_string(const std::string &token) {
+		bool parse_dict_string(const std::string &token, const std::string &lemma) {
 			//std::string token = boost::locale::to_lower(token_str, m_loc);
 
 			lb::ssegment_index wmap(lb::word, token.begin(), token.end(), m_loc);
@@ -241,7 +241,7 @@ class zparser {
 			std::sort(rec.ent.begin(), rec.ent.end(), token_entity());
 			m_total++;
 
-			return m_process(root, rec);
+			return m_process(lemma, root, rec);
 		}
 
 		void parse_file(const std::string &input_file) {
@@ -250,7 +250,7 @@ class zparser {
 			ioremap::warp::timer t;
 			ioremap::warp::timer total;
 
-			std::string line;
+			std::string line, lemma;
 
 			long lines = 0;
 			long chunk = 100000;
@@ -270,14 +270,17 @@ class zparser {
 					if (!std::getline(in, line))
 						break;
 
+					lemma = boost::locale::to_lower(line, m_loc);
+
 					continue;
 				}
 
-				if (!parse_dict_string(line))
+				if (!parse_dict_string(line, lemma))
 					break;
 			}
 			duration = total.elapsed();
-			std::cout << "Read and parsed " << lines << " lines, elapsed: " << duration << " msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
+			std::cout << "Read and parsed " << lines << " lines, elapsed: " << duration <<
+				" msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
 		}
 
 		int parser_features_num(void) const {

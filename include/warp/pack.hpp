@@ -48,6 +48,7 @@ struct entry {
 		serialization_version = 1
 	};
 
+	std::string lemma;
 	std::string root;
 	std::vector<feature_ending> fe;
 };
@@ -93,12 +94,16 @@ class packer {
 			}
 		}
 
-		bool zprocess(const std::string &root, const struct parsed_word &rec) {
+		bool zprocess(const std::string &lemma, const std::string &root, const struct parsed_word &rec) {
 			feature_ending en(rec.ending, rec.features);
 
-			auto r = m_roots.find(root);
+			auto r = m_roots.find(lemma);
 			if (r == m_roots.end()) {
-				m_roots[root].fe.emplace_back(en);
+				entry e;
+				e.root = root;
+				e.lemma = lemma;
+				e.fe.emplace_back(en);
+				m_roots[lemma] = e;
 			} else {
 				r->second.fe.emplace_back(en);
 			}
@@ -224,8 +229,9 @@ namespace msgpack {
 template <typename Stream>
 static inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const ioremap::warp::entry &e)
 {
-	o.pack_array(3);
+	o.pack_array(4);
 	o.pack((int)ioremap::warp::entry::serialization_version);
+	o.pack(e.lemma);
 	o.pack(e.root);
 	o.pack(e.fe);
 
@@ -248,14 +254,15 @@ static inline ioremap::warp::entry &operator >>(msgpack::object o, ioremap::warp
 	p[0].convert(&version);
 	switch (version) {
 	case 1: {
-		if (size != 3) {
+		if (size != 4) {
 			std::ostringstream ss;
 			ss << "entry msgpack: array size mismatch: read: " << size << ", must be: 4";
 			throw std::runtime_error(ss.str());
 		}
 
-		p[1].convert(&e.root);
-		p[2].convert(&e.fe);
+		p[1].convert(&e.lemma);
+		p[2].convert(&e.root);
+		p[3].convert(&e.fe);
 		break;
 	}
 	default: {

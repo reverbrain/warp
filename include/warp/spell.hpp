@@ -73,26 +73,16 @@ class spell {
 		std::atomic_long m_roots, m_words;
 
 		bool unpack_everything(const warp::entry &e) {
-			long loaded = 0;
+			long loaded = 1;
+			auto lword = lconvert::from_utf8(e.lemma);
+			m_fuzzy.feed_word(lword, lword);
 #if 0
-			for (auto f = e.fe.begin(); f != e.fe.end(); ++f) {
-				std::string word = e.root + f->ending;
-				m_fuzzy.feed_word(lconvert::from_utf8(word), lconvert::from_utf8(word));
-			}
-#else
-			std::string word = e.root;
-			if (e.fe.size() != 0) {
-				word += e.fe[0].ending;
-				lstring lword = lconvert::from_utf8(word);
-
-				for (size_t i = 0; i < e.fe.size(); i += 10) {
-					m_fuzzy.feed_word(lconvert::from_utf8(e.root + e.fe[i].ending), lword);
+			for (size_t i = 0; i < e.fe.size(); i += 100) {
+				std::string word = e.root + e.fe[i].ending;
+				if (word != e.lemma) {
+					m_fuzzy.feed_word(lconvert::from_utf8(word), lword);
 					loaded++;
 				}
-			} else {
-				lstring lword = lconvert::from_utf8(word);
-				m_fuzzy.feed_word(lword, lword);
-				loaded = 1;
 			}
 #endif
 			m_roots += 1;
@@ -110,12 +100,13 @@ class spell {
 				if (w->size() > t.size() + 2)
 					continue;
 
-				if (t.size() > w->size())
+				if (t.size() > w->size() + 2)
 					continue;
 
 				int dist = distance::levenstein<lstring>(t, *w, min_dist);
 				if (dist < 0)
 					continue;
+				std::cout << t << " vs " << *w << " : " << dist << std::endl;
 
 				if (dist < min_dist)
 					ret.clear();
