@@ -33,26 +33,6 @@
 
 namespace ioremap { namespace warp {
 
-struct feature_ending {
-	std::string ending;
-	parsed_word::feature_mask features;
-
-	feature_ending() : features(0ULL) {}
-	feature_ending(const std::string &end, parsed_word::feature_mask fm) : ending(end), features(fm) {}
-
-	MSGPACK_DEFINE(ending, features);
-};
-
-struct entry {
-	enum {
-		serialization_version = 1
-	};
-
-	std::string lemma;
-	std::string root;
-	std::vector<feature_ending> fe;
-};
-
 class packer {
 	public:
 		packer(const std::string &output, int output_num) : m_output_base(output), m_output_num(output_num) {
@@ -93,44 +73,42 @@ class packer {
 			}
 		}
 
-		bool zprocess(const std::string &lemma, const std::string &root, const struct parsed_word &rec) {
-			feature_ending en(rec.ending, rec.features);
-
-			auto r = m_roots.find(lemma);
+		bool zprocess(const struct parsed_word &rec) {
+			auto r = m_roots.find(rec.lemma);
 			if (r == m_roots.end()) {
-				entry e;
-				e.root = root;
-				e.lemma = lemma;
-				e.fe.emplace_back(en);
-				m_roots[lemma] = e;
+				std::vector<parsed_word> vec;
+				vec.push_back(rec);
+
+				m_roots[rec.lemma] = vec;
 			} else {
-				r->second.fe.emplace_back(en);
+				r->second.emplace_back(rec);
 			}
 			return true;
 		}
 
 	private:
-		std::map<std::string, entry> m_roots;
+		std::map<std::string, std::vector<parsed_word>> m_roots;
 		std::string m_output_base;
 		int m_output_num;
 
-		bool pack(std::ofstream &out, const entry &entry) {
-			msgpack::sbuffer buf;
-			msgpack::pack(&buf, entry);
+		bool pack(std::ofstream &out, const std::vector<parsed_word> &words) {
+			for (auto word = words.begin(); word != words.end(); ++word) {
+				msgpack::sbuffer buf;
+				msgpack::pack(&buf, *word);
 
-			out.write(buf.data(), buf.size());
-			if (!out.good())
-				return false;
+				out.write(buf.data(), buf.size());
+				if (!out.good())
+					return false;
+			}
 
 			return true;
 		}
-
 };
 
 class unpacker {
 	public:
-		typedef std::function<bool (const entry &)> unpack_process;
-
+		typedef std::function<bool (const parsed_word &)> unpack_process;
+ 
 		unpacker(const std::vector<std::string> &inputs, int thread_num, const unpack_process &process) : m_total(0) {
 			timer t;
 
@@ -188,8 +166,8 @@ class unpacker {
 						while (pac.next(&result)) {
 							msgpack::object obj = result.get();
 
-							entry e;
-							obj.convert<entry>(&e);
+							parsed_word e;
+							obj.convert<parsed_word>(&e);
 
 							if (!process(e))
 								return;
@@ -226,22 +204,23 @@ class unpacker {
 namespace msgpack {
 
 template <typename Stream>
-static inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const ioremap::warp::entry &e)
+static inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const ioremap::warp::parsed_word &e)
 {
-	o.pack_array(4);
-	o.pack((int)ioremap::warp::entry::serialization_version);
+	o.pack_array(5);
+	o.pack((int)ioremap::warp::parsed_word::serialization_version);
 	o.pack(e.lemma);
-	o.pack(e.root);
-	o.pack(e.fe);
+	o.pack(e.word);
+	o.pack(e.features);
+	o.pack(e.ending_len);
 
 	return o;
 }
 
-static inline ioremap::warp::entry &operator >>(msgpack::object o, ioremap::warp::entry &e)
+static inline ioremap::warp::parsed_word &operator >>(msgpack::object o, ioremap::warp::parsed_word &e)
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1) {
 		std::ostringstream ss;
-		ss << "entry msgpack: type: " << o.type <<
+		ss << "parsed_word msgpack: type: " << o.type <<
 			", must be: " << msgpack::type::ARRAY <<
 			", size: " << o.via.array.size;
 		throw std::runtime_error(ss.str());
@@ -253,21 +232,22 @@ static inline ioremap::warp::entry &operator >>(msgpack::object o, ioremap::warp
 	p[0].convert(&version);
 	switch (version) {
 	case 1: {
-		if (size != 4) {
+		if (size != 5) {
 			std::ostringstream ss;
-			ss << "entry msgpack: array size mismatch: read: " << size << ", must be: 4";
+			ss << "parsed_word msgpack: array size mismatch: read: " << size << ", must be: 5";
 			throw std::runtime_error(ss.str());
 		}
 
 		p[1].convert(&e.lemma);
-		p[2].convert(&e.root);
-		p[3].convert(&e.fe);
+		p[2].convert(&e.word);
+		p[3].convert(&e.features);
+		p[4].convert(&e.ending_len);
 		break;
 	}
 	default: {
 		std::ostringstream ss;
-		ss << "entry msgpack: version mismatch: read: " << version <<
-			", must be: <= " << ioremap::warp::entry::serialization_version;
+		ss << "parsed_word msgpack: version mismatch: read: " << version <<
+			", must be: <= " << ioremap::warp::parsed_word::serialization_version;
 		throw msgpack::type_error();
 	}
 	}

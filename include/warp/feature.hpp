@@ -130,21 +130,27 @@ struct parser {
 };
 
 struct parsed_word {
-	std::string			ending;
-	std::vector<token_entity>	ent;
+	enum {
+		serialization_version = 1
+	};
 
-	parsed_word() : features(0ULL) {}
+	std::string lemma;
+	std::string word;
 
 	typedef uint64_t feature_mask;
-	feature_mask	features;
+	feature_mask features;
+
+	int ending_len;
+
+	parsed_word() : features(0ULL), ending_len(0) {}
 };
 
-static inline bool default_process(const std::string &, const std::string &, const struct parsed_word &) { return false; }
+static inline bool default_process(const struct parsed_word &) { return false; }
 
 class zparser {
 	public:
 		// return false if you want to stop further processing
-		typedef std::function<bool (const std::string &lemma, const std::string &root, const struct parsed_word &rec)> zparser_process;
+		typedef std::function<bool (const struct parsed_word &rec)> zparser_process;
 		zparser() : m_total(0), m_process(default_process) {
 			boost::locale::generator gen;
 			m_loc = gen("en_US.UTF8");
@@ -173,6 +179,7 @@ class zparser {
 			wmap.rule(lb::word_any | lb::word_none);
 
 			std::string root;
+			std::string ending;
 			parsed_word rec;
 
 			std::vector<std::string> failed;
@@ -201,12 +208,12 @@ class zparser {
 					// we assume here that ending can start with the word token
 					if (it->rule() & lb::word_any) {
 						do {
-							// there is no ending in this word if next token is space (or anything else if that matters)
+							// there is no ending in this word if next token is space (or anything 'similar' if that matters)
 							// only not space tokens here mean (parts of) word ending, let's check it
 							if (isspace(it->str()[0]))
 								break;
 
-							rec.ending += it->str();
+							ending += it->str();
 
 							if (++it == e)
 								break;
@@ -227,17 +234,18 @@ class zparser {
 				} else {
 					if (ent.position < (int)sizeof(parsed_word::feature_mask) * 8)
 						rec.features |= (parsed_word::feature_mask)1 << ent.position;
-					rec.ent.emplace_back(ent);
 				}
 			}
 
-			if (!rec.ent.size())
+			if (rec.features == 0ULL)
 				return true;
 
-			std::sort(rec.ent.begin(), rec.ent.end(), token_entity());
+			rec.word = root + ending;
+			rec.ending_len = ending.size();
+			rec.lemma = lemma;
 			m_total++;
 
-			return m_process(lemma, root, rec);
+			return m_process(rec);
 		}
 
 		void parse_file(const std::string &input_file) {

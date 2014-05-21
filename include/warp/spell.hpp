@@ -29,21 +29,21 @@ namespace ioremap { namespace warp {
 
 class spell {
 	public:
-		spell(int ngram) : m_fuzzy(ngram), m_roots(0), m_words(0) {}
+		spell(int ngram) : m_fuzzy(ngram), m_words(0), m_lemmas(0) {}
 
 		void feed_dict(const std::vector<std::string> &path) {
 			timer tm;
 
 			warp::unpacker(path, 2, std::bind(&spell::unpack_everything, this, std::placeholders::_1));
 
-			printf("spell checker loaded: words: %ld, roots: %ld, time: %lld ms\n",
-					m_words.load(), m_roots.load(), (unsigned long long)tm.elapsed());
+			printf("spell checker loaded: words: %ld, lemmas: %ld, time: %lld ms\n",
+					m_words.load(), m_lemmas.load(), (unsigned long long)tm.elapsed());
 		}
 
 		void feed_word(const std::string &word) {
 			m_fuzzy.feed_word(lconvert::from_utf8(word), lconvert::from_utf8(word));
-			m_roots += 1;
 			m_words += 1;
+			m_lemmas += 1;
 		}
 
 		std::vector<lstring> search(const std::string &text) {
@@ -77,27 +77,27 @@ class spell {
 		}
 
 	private:
+		std::mutex m_lock;
 		std::map<std::string, lstring> m_form2lemma;
 
-		std::map<lstring, std::vector<warp::feature_ending>> m_fe;
 		fuzzy<lstring> m_fuzzy;
-		std::atomic_long m_roots, m_words;
+		std::atomic_long m_words, m_lemmas;
 
-		bool unpack_everything(const warp::entry &e) {
-			long loaded = 1;
+		bool unpack_everything(const warp::parsed_word &e) {
 			auto lword = lconvert::from_utf8(e.lemma);
-			m_fuzzy.feed_word(lword, lword);
 
-			m_form2lemma[e.root] = lword;
-			for (size_t i = 0; i < e.fe.size(); i += 1) {
+			std::unique_lock<std::mutex> guard(m_lock);
 
-				std::string word = e.root + e.fe[i].ending;
-				m_form2lemma[word] = lword;
-				std::cout << word << " loaded" << std::endl;
+			auto it = m_form2lemma.find(e.lemma);
+			if (it == m_form2lemma.end()) {
+				m_fuzzy.feed_word(lword, lword);
+				m_lemmas += 1;
+				m_form2lemma[e.lemma] = lword;
 			}
 
-			m_roots += 1;
-			m_words += loaded;
+			m_form2lemma[e.word] = lword;
+
+			m_words += 1;
 			return true;
 		}
 
