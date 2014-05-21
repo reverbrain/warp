@@ -139,10 +139,6 @@ struct parsed_word {
 	feature_mask	features;
 };
 
-struct record {
-	std::vector<parsed_word>	forms;
-};
-
 static inline bool default_process(const std::string &, const std::string &, const struct parsed_word &) { return false; }
 
 class zparser {
