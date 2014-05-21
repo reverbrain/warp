@@ -255,6 +255,8 @@ class zparser {
 			long lines = 0;
 			long chunk = 100000;
 			long duration;
+			bool read_lemma = false;
+
 			while (std::getline(in, line)) {
 				if (++lines % chunk == 0) {
 					duration = t.restart();
@@ -265,13 +267,15 @@ class zparser {
 						std::endl;
 				}
 
-				if (line.substr(0, 5) == "@ID: ") {
-					// skip next line - it contains original word
-					if (!std::getline(in, line))
-						break;
+				if (line[0] == '@') {
+					read_lemma = false;
+					continue;
+				}
 
+				if (!read_lemma) {
+					// next line contains lemma word
 					lemma = boost::locale::to_lower(line, m_loc);
-
+					read_lemma = true;
 					continue;
 				}
 

@@ -78,7 +78,6 @@ class packer {
 					std::cout << "Using '" << name << "' output file" << std::endl;
 				}
 
-				root->second.root = root->first;
 				bool ret = pack(out, root->second);
 				if (!ret) {
 					std::string name = m_output_base + boost::lexical_cast<std::string>(file_id);

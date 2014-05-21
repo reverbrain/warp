@@ -48,14 +48,23 @@ class spell {
 
 		std::vector<lstring> search(const std::string &text) {
 			timer tm;
+			std::vector<lstring> ret;
+
+			auto precise = m_form2lemma.find(text);
+
+			printf("spell checker lookup: '%s': precise search: total words: %zd, search-time: %lld ms\n",
+					text.c_str(), m_form2lemma.size(), (unsigned long long)tm.elapsed());
+
+			if (precise != m_form2lemma.end()) {
+				ret.push_back(precise->second);
+				return ret;
+			}
 
 			lstring t = lconvert::from_utf8(boost::locale::to_lower(text, __fuzzy_locale));
 			auto fsearch = m_fuzzy.search(t);
 
 			printf("spell checker lookup: rough search: words: %zd, fuzzy-search-time: %lld ms\n",
 					fsearch.size(), (unsigned long long)tm.elapsed());
-
-			std::vector<lstring> ret;
 
 			ret = search_everything(t, fsearch);
 
@@ -68,6 +77,8 @@ class spell {
 		}
 
 	private:
+		std::map<std::string, lstring> m_form2lemma;
+
 		std::map<lstring, std::vector<warp::feature_ending>> m_fe;
 		fuzzy<lstring> m_fuzzy;
 		std::atomic_long m_roots, m_words;
@@ -76,15 +87,15 @@ class spell {
 			long loaded = 1;
 			auto lword = lconvert::from_utf8(e.lemma);
 			m_fuzzy.feed_word(lword, lword);
-#if 0
-			for (size_t i = 0; i < e.fe.size(); i += 100) {
+
+			m_form2lemma[e.root] = lword;
+			for (size_t i = 0; i < e.fe.size(); i += 1) {
+
 				std::string word = e.root + e.fe[i].ending;
-				if (word != e.lemma) {
-					m_fuzzy.feed_word(lconvert::from_utf8(word), lword);
-					loaded++;
-				}
+				m_form2lemma[word] = lword;
+				std::cout << word << " loaded" << std::endl;
 			}
-#endif
+
 			m_roots += 1;
 			m_words += loaded;
 			return true;
@@ -92,7 +103,7 @@ class spell {
 
 		std::vector<lstring> search_everything(const lstring &t, const std::vector<lstring> &fsearch) {
 			std::vector<lstring> ret;
-			int min_dist = 3;
+			int min_dist = 2;
 
 			ret.reserve(fsearch.size());
 
