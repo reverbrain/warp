@@ -10,7 +10,7 @@
     "buffer_size": 65536,
     "logger": {
         "file": "/dev/stderr",
-        "level": 4
+        "level": 2
     },
     "daemon": {
         "fork": false,
@@ -19,8 +19,8 @@
     "monitor-port": 20000,
     "application": {
 	"msgpack-input" : [
-			"/home/zbr/awork/warp/data/zal.msgpack.0",  "/home/zbr/awork/warp/data/zal.msgpack.1",
-			"/home/zbr/awork/warp/data/zal.msgpack.2",  "/home/zbr/awork/warp/data/zal.msgpack.3"
+			"/home/zbr/awork/warp/data/zal.0",  "/home/zbr/awork/warp/data/zal.1",
+			"/home/zbr/awork/warp/data/zal.2",  "/home/zbr/awork/warp/data/zal.3"
 		]		
     }
 }
