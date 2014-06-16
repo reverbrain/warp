@@ -107,7 +107,7 @@ class packer {
 
 class unpacker {
 	public:
-		typedef std::function<bool (const parsed_word &)> unpack_process;
+		typedef std::function<bool (int idx, const parsed_word &)> unpack_process;
  
 		unpacker(const std::vector<std::string> &inputs, int thread_num, const unpack_process &process) : m_total(0) {
 			timer t;
@@ -121,7 +121,7 @@ class unpacker {
 				for (size_t j = i; j < inputs.size(); j += thread_num)
 					in.push_back(inputs[j]);
 
-				pool.emplace_back(std::bind(&unpacker::unpack, this, in, process));
+				pool.emplace_back(std::bind(&unpacker::unpack, this, i, in, process));
 			}
 
 			for (auto th = pool.begin(); th != pool.end(); ++th)
@@ -137,7 +137,7 @@ class unpacker {
 	private:
 		std::atomic_long m_total;
 
-		void unpack(const std::vector<std::string> &inputs, const unpack_process &process) {
+		void unpack(int idx, const std::vector<std::string> &inputs, const unpack_process &process) {
 			timer total, t;
 
 			long num = 0;
@@ -169,12 +169,12 @@ class unpacker {
 							parsed_word e;
 							obj.convert<parsed_word>(&e);
 
-							if (!process(e))
+							if (!process(idx, e))
 								return;
 
 							if ((++num % chunk) == 0) {
 								duration = t.restart();
-								std::cout << "Read objects: " << num <<
+								std::cout << "Index: " << idx << ", read objects: " << num <<
 									", elapsed time: " << total.elapsed() << " msecs" <<
 									", speed: " << chunk * 1000 / duration << " objs/sec" <<
 									std::endl;
@@ -190,7 +190,7 @@ class unpacker {
 			}
 
 			duration = total.elapsed();
-			std::cout << "Read objects: " << num <<
+			std::cout << "Index: " << idx << ", read objects: " << num <<
 				", elapsed time: " << duration << " msecs" <<
 				", speed: " << num * 1000 / duration << " objs/sec" <<
 				std::endl;

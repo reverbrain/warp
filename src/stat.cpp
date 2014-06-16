@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
 			if (search.size() == 0) {
 				out_word = it->first;
 			} else {
-				out_word = warp::lconvert::to_string(search[0]);
+				out_word = search[0];
 			}
 
 			int out_count;

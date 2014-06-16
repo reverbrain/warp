@@ -188,7 +188,7 @@ class lex {
 		std::string root(const std::string &word) {
 			auto ret = m_spell->search(word);
 			if (ret.size())
-				return lconvert::to_string(ret[0]);
+				return ret[0];
 			return word;
 		}
 
