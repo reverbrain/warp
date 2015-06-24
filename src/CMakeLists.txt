@@ -16,7 +16,6 @@ target_link_libraries(warp_stat
 	${MSGPACK_LIBRARIES}
 )
 
-option(THEVOID "Build thevoid server for lexical parsing" OFF)
 if (THEVOID)
 	add_executable(warp_server server.cpp)
 	target_link_libraries(warp_server
@@ -24,8 +23,7 @@ if (THEVOID)
 		${MSGPACK_LIBRARIES}
 		${THEVOID_LIBRARIES}
 		${SWARM_LIBRARIES}
-		${SWARM_URLFETCHER_LIBRARIES}
-		)
+	)
 endif()
 
 
