@@ -33,7 +33,6 @@ class fuzzy {
 		fuzzy(int num) : m_ngram(num) {}
 
 		void feed_word(const lstring &word, const D &d) {
-			std::unique_lock<std::mutex> guard(m_lock);
 			m_ngram.load(word, d);
 		}
 
@@ -81,7 +80,6 @@ class fuzzy {
 
 	private:
 		ngram::ngram<lstring, D> m_ngram;
-		std::mutex m_lock;
 };
 
 }} // namespace ioremap::warp

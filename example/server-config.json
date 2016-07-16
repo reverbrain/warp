@@ -31,8 +31,8 @@
     "trace_header": "X-Trace",
     "application": {
 	"msgpack-input" : [
-			"/home/zbr/awork/warp/data/zal.msgpack.0",  "/home/zbr/awork/warp/data/zal.msgpack.1",
-			"/home/zbr/awork/warp/data/zal.msgpack.2",  "/home/zbr/awork/warp/data/zal.msgpack.3"
+			"/home/zbr/awork/warp/data/zal.0",  "/home/zbr/awork/warp/data/zal.1",
+			"/home/zbr/awork/warp/data/zal.2",  "/home/zbr/awork/warp/data/zal.3"
 		]		
     }
 }
