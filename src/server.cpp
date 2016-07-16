@@ -154,7 +154,7 @@ public:
 
 			std::string data = val["data"].GetString();
 			bool normalize = val.HasMember("normalize");
-			WLOG_NOTICE("grammar::parse_single_element: length: %zd, data: '%s', normalize: %d",
+			WLOG_NOTICE("grammar::parse_single_element: length: %ld, data: '%s', normalize: %d",
 					data.size(), data.c_str(), normalize);
 
 			if (normalize) {
