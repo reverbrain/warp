@@ -8,12 +8,14 @@ add_executable(warp_spell spell.cpp)
 target_link_libraries(warp_spell
 	${Boost_LIBRARIES}
 	${MSGPACK_LIBRARIES}
+	pthread
 )
 
 add_executable(warp_stat stat.cpp)
 target_link_libraries(warp_stat
 	${Boost_LIBRARIES}
 	${MSGPACK_LIBRARIES}
+	pthread
 )
 
 if (THEVOID)
@@ -23,6 +25,7 @@ if (THEVOID)
 		${MSGPACK_LIBRARIES}
 		${THEVOID_LIBRARIES}
 		${SWARM_LIBRARIES}
+		pthread
 	)
 endif()
 
