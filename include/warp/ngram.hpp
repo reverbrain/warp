@@ -25,206 +25,206 @@
 #include <sstream>
 #include <vector>
 
-#include <math.h>
-
 namespace ioremap { namespace warp { namespace ngram {
 template <typename S, typename D>
 class ngram {
-	struct ngram_data {
-		D data;
-		int pos;
+struct ngram_data {
+	D data;
+	int pos;
 
-		ngram_data() : pos(0) {}
-	};
+	ngram_data() : pos(0) {}
+};
 
-	struct ngram_index_data {
-		size_t data_index;
-		int pos;
+struct ngram_index_data {
+	size_t data_index;
+	int pos;
 
-		bool operator<(const ngram_index_data &other) const {
-			return data_index < other.data_index;
-		}
+	bool operator<(const ngram_index_data &other) const {
+		return data_index < other.data_index;
+	}
 
-		ngram_index_data() : data_index(0), pos(0) {}
-	};
+	ngram_index_data() : data_index(0), pos(0) {}
+};
 
-	struct ngram_meta {
-		std::set<ngram_index_data> data;
-		double count;
+struct ngram_meta {
+	std::set<ngram_index_data> data;
+	double count;
 
-		ngram_meta() : count(1.0) {}
-	};
+	ngram_meta() : count(1.0) {}
+};
 
-	public:
-		ngram(int n) : m_n(n) {}
+public:
+	ngram(int n) : m_n(n) {}
 
-		static std::vector<S> split(const S &text, size_t ngram) {
-			std::vector<S> ret;
+	static std::vector<S> split(const S &text, size_t ngram) {
+		std::vector<S> ret;
 
-			if (text.size() >= ngram) {
-				for (size_t i = 0; i < text.size() - ngram + 1; ++i) {
-					S word = text.substr(i, ngram);
-					ret.emplace_back(word);
-				}
+		if (text.size() >= ngram) {
+			for (size_t i = 0; i < text.size() - ngram + 1; ++i) {
+				S word = text.substr(i, ngram);
+				ret.emplace_back(word);
 			}
-
-			return ret;
 		}
 
-		void load(const S &text, const D &d) {
-			std::vector<S> grams = ngram<S, D>::split(text, m_n);
-			int position = 0;
-			size_t index;
+		return ret;
+	}
 
-			auto it = m_data_index.find(d);
-			if (it == m_data_index.end()) {
-				index = m_data.size();
-				m_data.push_back(d);
+	void load(const S &text, const D &d) {
+		std::vector<S> grams = ngram<S, D>::split(text, m_n);
+		int position = 0;
+		size_t index;
 
-				m_data_index[d] = index;
+		auto it = m_data_index.find(d);
+		if (it == m_data_index.end()) {
+			index = m_data.size();
+			m_data.push_back(d);
+
+			m_data_index[d] = index;
+		} else {
+			index = it->second;
+		}
+
+		for (auto word = grams.begin(); word != grams.end(); ++word) {
+			ngram_index_data data;
+			data.data_index = index;
+			data.pos = position++;
+
+			auto it = m_map.find(*word);
+			if (it == m_map.end()) {
+				ngram_meta meta;
+
+				meta.data.insert(data);
+				m_map[*word] = meta;
 			} else {
-				index = it->second;
-			}
-
-			for (auto word = grams.begin(); word != grams.end(); ++word) {
-				ngram_index_data data;
-				data.data_index = index;
-				data.pos = position++;
-
-				auto it = m_map.find(*word);
-				if (it == m_map.end()) {
-					ngram_meta meta;
-
-					meta.data.insert(data);
-					m_map[*word] = meta;
-				} else {
-					it->second.count++;
-					it->second.data.insert(data);
-				}
+				it->second.count++;
+				it->second.data.insert(data);
 			}
 		}
+	}
 
-		std::vector<ngram_data> lookup_word(const S &word) const {
-			std::vector<ngram_data> ret;
+	std::vector<ngram_data> lookup_word(const S &word) const {
+		std::vector<ngram_data> ret;
 
-			auto it = m_map.find(word);
-			if (it != m_map.end()) {
-				for (auto idx = it->second.data.begin(); idx != it->second.data.end(); ++idx) {
-					ngram_data data;
+		auto it = m_map.find(word);
+		if (it != m_map.end()) {
+			for (auto idx = it->second.data.begin(); idx != it->second.data.end(); ++idx) {
+				ngram_data data;
 
-					data.data = m_data[idx->data_index];
-					data.pos = idx->pos;
+				data.data = m_data[idx->data_index];
+				data.pos = idx->pos;
 
-					ret.emplace_back(data);
-				}
+				ret.emplace_back(data);
 			}
-
-			return ret;
 		}
 
-		double lookup(const S &word) const {
-			double count = 1.0;
+		return ret;
+	}
 
-			auto it = m_map.find(word);
-			if (it != m_map.end())
-				count += it->second.count;
+	double lookup(const S &word) const {
+		double count = 1.0;
 
-			count /= 2.0 * m_map.size();
-			return count;
-		}
+		auto it = m_map.find(word);
+		if (it != m_map.end())
+			count += it->second.count;
 
-		size_t num(void) const {
-			return m_map.size();
-		}
+		count /= 2.0 * m_map.size();
+		return count;
+	}
 
-		int n(void) const {
-			return m_n;
-		}
+	size_t num(void) const {
+		return m_map.size();
+	}
 
-	private:
-		int m_n;
-		std::map<S, ngram_meta> m_map;
-		std::vector<D> m_data;
-		std::map<D, size_t> m_data_index;
+	int n(void) const {
+		return m_n;
+	}
+
+private:
+	int m_n;
+	std::map<S, ngram_meta> m_map;
+	std::vector<D> m_data;
+	std::map<D, size_t> m_data_index;
 };
 
 typedef ngram<std::string, std::string> byte_ngram;
 
+template <typename S, typename D>
 class probability {
-	public:
-		probability() : m_n2(2), m_n3(3) {}
+public:
+	probability() : m_small(2), m_large(3) {}
 
-		bool load_file(const char *filename) {
-			std::ifstream in(filename, std::ios::binary);
-			std::ostringstream ss;
-			ss << in.rdbuf();
-
-			std::string text = ss.str();
-
-			m_n2.load(text, text);
-			m_n3.load(text, text);
+	bool load_text(const S &text, const D &mark) {
+		m_small.load(text, mark);
+		m_large.load(text, mark);
 #if 0
-			printf("%s: loaded: %zd bytes, 2-grams: %zd, 3-grams: %zd\n",
-					filename, text.size(), m_n2.num(), m_n3.num());
+		printf("%s: loaded: %zd bytes, 2-grams: %zd, 3-grams: %zd\n",
+				filename, text.size(), m_n2.num(), m_n3.num());
 #endif
-			return true;
+		return true;
+	}
+
+	double detect(const S &text) const {
+		double p = 1;
+		for (size_t i = m_large.n(); i <= text.size(); ++i) {
+			S s_large = text.substr(i - m_large.n(), m_large.n());
+			S s_small = text.substr(i - m_large.n(), m_small.n());
+
+			double p_large = (m_large.lookup(s_large));
+			double p_small = (m_small.lookup(s_small));
+
+			p *= p_large / p_small;
+#if 1
+			printf("s3: %s - %f, s2: %s - %f, diff: %f, p: %f\n",
+				ribosome::lconvert::to_string(s_large).c_str(), p_large,
+				ribosome::lconvert::to_string(s_small).c_str(), p_small,
+				p_large/p_small, p);
+#endif
 		}
 
-		double detect(const std::string &text) const {
-			double p = 0;
-			for (size_t i = 3; i < text.size(); ++i) {
-				std::string s3 = text.substr(i - 3, 3);
-				std::string s2 = text.substr(i - 3, 2);
+		if (p == 1)
+			return 0;
+		return p;
+	}
 
-				p += log(m_n3.lookup(s3) / m_n2.lookup(s2));
-			}
-
-			return abs(p);
-		}
-
-	private:
-		byte_ngram m_n2, m_n3;
+private:
+	ngram<S, D> m_small, m_large;
 };
 
+
+template <typename S, typename D>
 class detector {
-	public:
-		detector() {}
+public:
+	detector() {}
 
-		bool load_file(const char *filename, const char *id) {
-			probability p;
-			bool ret = p.load_file(filename);
-			if (ret)
-				n_prob[id] = p;
+	bool load_text(const S &text, const D &id) {
+		probability<S, D> p;
+		bool ret = p.load_text(text, id);
+		if (ret)
+			n_prob[id] = p;
 
-			return ret;
-		}
+		return ret;
+	}
 
-		std::string detect(const std::string &text) const {
-			double max_p = 0;
-			std::string name = "";
+	std::string detect(const S &text) const {
+		double max_p = 0;
+		std::string name = "";
 
-			for (auto it = n_prob.begin(); it != n_prob.end(); ++it) {
-				double p = it->second.detect(text);
-				if (p > max_p) {
-					name = it->first;
-					max_p = p;
-				}
+		for (auto it = n_prob.begin(); it != n_prob.end(); ++it) {
+			double p = it->second.detect(text);
+			printf("word: %s, lang: %s, probability: %f\n",
+					ribosome::lconvert::to_string(text).c_str(),
+					it->first.c_str(), p);
+			if (p > max_p) {
+				name = it->first;
+				max_p = p;
 			}
-
-			return name;
 		}
 
-		std::string detect_file(const char *filename) const {
-			std::ifstream in(filename, std::ios::binary);
-			std::ostringstream ss;
-			ss << in.rdbuf();
+		return name;
+	}
 
-			std::string text = ss.str();
-			return detect(text);
-		}
-
-	private:
-		std::map<std::string, probability> n_prob;
+private:
+	std::map<D, probability<S, D>> n_prob;
 };
 
 }}} // namespace ioremap::warp::ngram
