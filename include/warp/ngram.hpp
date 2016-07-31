@@ -212,6 +212,17 @@ public:
 		return buffer.str();
 	}
 
+	int save_file(const char *path) {
+		std::ofstream output(path, std::ios::trunc);
+		std::string content = save();
+
+		output.write(content.data(), content.size());
+		if (!output.good())
+			return -1;
+
+		return 0;
+	}
+
 	int load_file(const char *path) {
 		std::ifstream input(path);
 		std::ostringstream ss;
