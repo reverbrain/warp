@@ -12,6 +12,7 @@ set(CMAKE_CXX_FLAGS "-g -std=c++0x -W -Wall -Wextra -fstack-protector-all")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package(Boost REQUIRED COMPONENTS system program_options thread)
+find_package(Ribosome REQUIRED)
 
 INCLUDE(cmake/locate_library.cmake)
 LOCATE_LIBRARY(MSGPACK "msgpack.hpp" "msgpack")
@@ -23,21 +24,20 @@ if (THEVOID)
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/include
+	${PROJECT_SOURCE_DIR}/stem/libstemmer_c/include/
 	${Boost_INCLUDE_DIRS}
 	${MSGPACK_INCLUDE_DIRS}
-	${THEVOID_INCLUDE_DIRS}
+	${RIBOSOME_INCLUDE_DIRS}
 	${SWARM_INCLUDE_DIRS}
 	${THEVOID_INCLUDE_DIRS}
-	#${PROJECT_SOURCE_DIR}/stem/libstemmer_c/include
 )
 
 link_directories(
 	${Boost_LIBRARY_DIRS}
 	${MSGPACK_LIBRARY_DIRS}
-	${THEVOID_LIBRARY_DIRS}
+	${RIBOSOME_LIBRARY_DIRS}
 	${SWARM_LIBRARY_DIRS}
 	${THEVOID_LIBRARY_DIRS}
-	${cld_LIBRARY_DIRS}
 )
 
 add_subdirectory(stem)
