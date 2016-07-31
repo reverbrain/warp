@@ -18,15 +18,19 @@
 #define __WARP_NGRAM_HPP
 
 #include <algorithm>
+#include <fstream>
 #include <map>
 #include <string>
+#include <sstream>
 #include <vector>
-#include <unordered_map>
+
+#include <msgpack.hpp>
 
 namespace ioremap { namespace warp { namespace ngram {
 template <typename S>
 class ngram {
 public:
+	ngram() {}
 	ngram(int n) : m_n(n) {}
 
 	static std::vector<S> split(const S &text, size_t ngram) {
@@ -53,6 +57,10 @@ public:
 				it->second++;
 			}
 		}
+	}
+
+	void reset_stats() {
+		m_map.clear();
 	}
 
 	void sort(size_t num) {
@@ -97,18 +105,27 @@ public:
 		return m_n;
 	}
 
+	MSGPACK_DEFINE(m_n, m_map, m_profile);
+
 private:
-	int m_n;
-	std::unordered_map<S, size_t> m_map;
-	std::unordered_map<S, size_t> m_profile;
+	int m_n = 0;
+	std::map<S, size_t> m_map;
+	std::map<S, size_t> m_profile;
 };
 
 template <typename S>
 class probability {
 public:
+	probability() {}
 	probability(int ng) {
 		for (int i = 2; i <= ng; ++i) {
 			m_ngrams.emplace(std::pair<size_t, ngram<S>>(i, ngram<S>(i)));
+		}
+	}
+
+	void reset_stats() {
+		for (auto &ng: m_ngrams) {
+			ng.second.reset_stats();
 		}
 	}
 
@@ -135,6 +152,8 @@ public:
 
 		return score;
 	}
+
+	MSGPACK_DEFINE(m_ngrams);
 
 private:
 	std::map<size_t, ngram<S>> m_ngrams;
@@ -165,6 +184,12 @@ public:
 		}
 	}
 
+	void reset_stats() {
+		for (auto &p: m_probs) {
+			p.second.reset_stats();
+		}
+	}
+
 	D detect(const S &text) const {
 		ssize_t min_score = -1;
 		D name;
@@ -179,6 +204,36 @@ public:
 
 		return name;
 	}
+
+	std::string save() const {
+		std::stringstream buffer;
+		msgpack::pack(buffer, *this);
+		buffer.seekg(0);
+		return buffer.str();
+	}
+
+	int load_file(const char *path) {
+		std::ifstream input(path);
+		std::ostringstream ss;
+		ss << input.rdbuf();
+		std::string load_content = ss.str();
+		return load(load_content.data(), load_content.size());
+	}
+
+	int load(const char *data, size_t size) {
+		msgpack::unpacked msg;
+		try {
+			msgpack::unpack(&msg, data, size);
+
+			msg.get().convert(this);
+		} catch (const std::exception &e) {
+			return -EINVAL;
+		}
+
+		return 0;
+	}
+
+	MSGPACK_DEFINE(m_probs);
 
 private:
 	std::map<D, probability<S>> m_probs;
