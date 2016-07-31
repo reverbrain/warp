@@ -118,16 +118,11 @@ int main(int argc, char *argv[])
 	det.sort(3000);
 
 	if (save_path.size()) {
-		std::ofstream output(save_path.c_str(), std::ios::trunc);
-		std::string content = det.save();
-
-		output.write(content.data(), content.size());
-		if (output.good()) {
-			std::cout << "Successfully saved " << content.size() <<
-				" bytes of stats data into " << save_path << std::endl;
+		int err = det.save_file(save_path.c_str());
+		if (err) {
+			std::cout << "Successfully saved statistics data into " << save_path << std::endl;
 		} else {
-			std::cerr << "Could not save " << content.size() <<
-				" bytes of stats data into " << save_path << std::endl;
+			std::cerr << "Could not save statistics data into " << save_path << std::endl;
 			return -1;
 		}
 	}
