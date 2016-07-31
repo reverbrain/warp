@@ -197,12 +197,24 @@ public:
 
 				ribosome::split spl;
 				auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
-				std::set<std::string> words;
+				std::map<std::string, std::vector<size_t>> words;
+				size_t pos = 0;
 				for (auto &w: all_words) {
-					words.emplace(ribosome::lconvert::to_string(w));
+					auto word = ribosome::lconvert::to_string(w);
+					auto it = words.find(word);
+					if (it == words.end()) {
+						words[word] = std::vector<size_t>({pos});
+					} else {
+						it->second.push_back(pos);
+					}
+
+					++pos;
 				}
 
-				for (auto &word: words) {
+				for (auto &p: words) {
+					const auto &word = p.first;
+					const auto &positions = p.second;
+
 					std::string lang = server()->detector().detect(word);
 
 					rapidjson::Value lv(lang.c_str(), lang.size(), reply.GetAllocator());
@@ -211,6 +223,12 @@ public:
 					rapidjson::Value tok(rapidjson::kObjectType);
 					tok.AddMember("word", wv, reply.GetAllocator());
 					tok.AddMember("language", lv, reply.GetAllocator());
+
+					rapidjson::Value pv(rapidjson::kArrayType);
+					for (auto pos: positions) {
+						pv.PushBack(pos, reply.GetAllocator());
+					}
+					tok.AddMember("positions", pv, reply.GetAllocator());
 
 					if (want_stemming) {
 						std::string stemmed = server()->stemmer().stem(word, lang, "");
