@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-#include "warp/lex.hpp"
+#include "warp/json.hpp"
+#include "warp/jsonvalue.hpp"
+#include "warp/ngram.hpp"
+#include "warp/stem.hpp"
 
 #include <swarm/logger.hpp>
 
@@ -25,6 +28,13 @@
 #include <thevoid/rapidjson/stringbuffer.h>
 #include <thevoid/rapidjson/prettywriter.h>
 
+#include <ribosome/error.hpp>
+#include <ribosome/html.hpp>
+#include <ribosome/lstring.hpp>
+#include <ribosome/split.hpp>
+
+#include <boost/algorithm/string/trim_all.hpp>
+
 #define WLOG(level, a...) BH_LOG(logger(), level, ##a)
 #define WLOG_ERROR(a...) WLOG(SWARM_LOG_ERROR, ##a)
 #define WLOG_WARNING(a...) WLOG(SWARM_LOG_WARNING, ##a)
@@ -34,51 +44,87 @@
 
 using namespace ioremap;
 
+static std::string prepare_text(const std::string &text)
+{
+	std::string trimmed = boost::algorithm::trim_fill_copy_if(text, " ",
+		boost::is_any_of("1234567890-=!@#$%^&*()_+[]\\{}|';\":/.,?><\n\r\t "));
+
+	auto ret = ribosome::lconvert::from_utf8(trimmed);
+	//return ribosome::lconvert::to_lower(ret);
+	return ribosome::lconvert::to_string(ribosome::lconvert::to_lower(ret));
+};
+
 class http_server : public thevoid::server<http_server>
 {
 public:
 	virtual bool initialize(const rapidjson::Value &config) {
-		if (!config.HasMember("msgpack-input")) {
-			WLOG_ERROR("initialize: no msgpack-input option");
+		const char *lang_stats = warp::get_string(config, "language_detector_stats");
+		if (!lang_stats) {
+			WLOG_ERROR("initialize: 'language_detector_stats' option must be a string");
 			return false;
 		}
 
-		std::vector<std::string> path;
-
-		const auto & input = config["msgpack-input"];
-		if (input.IsArray()) {
-			for (rapidjson::Value::ConstValueIterator it = input.Begin(); it != input.End(); ++it) {
-				path.push_back(it->GetString());
-			}
-		} else {
-			path.push_back(input.GetString());
+		int err = m_det.load_file(lang_stats);
+		if (err) {
+			WLOG_ERROR("initialize: could not load language detector stats from '%s': %d", lang_stats, err);
+			return false;
 		}
 
-		m_lex.load(3, path);
-
-		WLOG_INFO("grammar::request: data from %s (and other files) has been loaded", path[0].c_str());
-
-		on<on_grammar>(
-			options::exact_match("/grammar"),
+		on<on_lang>(
+			options::exact_match("/lang_detect"),
 			options::methods("POST")
 		);
-	
+
+		on<on_lang>(
+			options::exact_match("/stem"),
+			options::methods("POST")
+		);
+
 		return true;
 	}
 
-	warp::lex &lex(void) {
-		return m_lex;
-	}
+	struct on_lang : public thevoid::simple_request_stream<http_server> {
+		void send_error(int status, int error, const char *fmt, ...) {
+			va_list args;
+			va_start(args, fmt);
 
-	struct on_grammar : public thevoid::simple_request_stream<http_server> {
+			char buffer[1024];
+			int sz = vsnprintf(buffer, sizeof(buffer), fmt, args);
+
+			WLOG_ERROR("%s: %d", buffer, error);
+
+			warp::JsonValue val;
+			rapidjson::Value ev(rapidjson::kObjectType);
+
+
+			rapidjson::Value esv(buffer, sz, val.GetAllocator());
+			ev.AddMember("message", esv, val.GetAllocator());
+			ev.AddMember("code", error, val.GetAllocator());
+			val.AddMember("error", ev, val.GetAllocator());
+
+			va_end(args);
+
+			std::string data = val.ToString();
+
+			thevoid::http_response http_reply;
+			http_reply.set_code(status);
+			http_reply.headers().set_content_length(data.size());
+			http_reply.headers().set_content_type("text/json");
+
+			this->send_reply(std::move(http_reply), std::move(data));
+		}
+
 		virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
-			(void) http_req;
+			bool want_stemming = false;
+
+			if (http_req.url().path().find("/stem") == 0) {
+				want_stemming = true;
+			}
 
 			rapidjson::Document doc;
 			const char *ptr = boost::asio::buffer_cast<const char*>(buffer);
 			if (!ptr) {
-				WLOG_ERROR("grammar::request: empty request\n");
-				this->send_reply(swarm::http_response::bad_request);
+				send_error(swarm::http_response::bad_request, -EINVAL, "document is empty");
 				return;
 			}
 
@@ -87,146 +133,81 @@ public:
 
 			doc.Parse<0>(buf.c_str());
 			if (doc.HasParseError()) {
-				WLOG_ERROR("grammar::request: failed to parse document: %s",
-						doc.GetParseError());
-				this->send_reply(swarm::http_response::bad_request);
+				send_error(swarm::http_response::bad_request, -EINVAL, "document parsing error: %s, offset: %ld",
+						doc.GetParseError(), doc.GetErrorOffset());
 				return;
 			}
 
-			rapidjson::Document reply;
-			reply.SetObject();
-
 			try {
-				rapidjson::Value reply_array(rapidjson::kArrayType);
+				warp::JsonValue reply;
 
-				if (!doc.HasMember("request")) {
-					WLOG_ERROR("grammar::request: no 'request' field in the document");
-					this->send_reply(swarm::http_response::bad_request);
+				auto request = warp::get_string(doc, "request");
+				if (!request) {
+					send_error(swarm::http_response::bad_request, -EINVAL,
+							"'request' member must be string");
 					return;
 				}
+				ribosome::html_parser html;
+				html.feed_text(request);
+				std::string nohtml_request = html.text(" ");
+				std::string clear_request = prepare_text(nohtml_request);
 
-				const rapidjson::Value &req = doc["request"];
-				if (req.IsArray()) {
-					for (rapidjson::Value::ConstValueIterator it = req.Begin(); it != req.End(); ++it) {
-						rapidjson::Value element(rapidjson::kObjectType);
-						parse_single_element(*it, element, reply.GetAllocator());
+				rapidjson::Value tokens(rapidjson::kArrayType);
 
-						reply_array.PushBack(element, reply.GetAllocator());
-					}
-				} else {
-					rapidjson::Value element(rapidjson::kObjectType);
-					parse_single_element(req, element, reply.GetAllocator());
-
-					reply_array.PushBack(element, reply.GetAllocator());
+				ribosome::split spl;
+				auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
+				std::set<std::string> words;
+				for (auto &w: all_words) {
+					words.emplace(ribosome::lconvert::to_string(w));
 				}
 
-				reply.AddMember("reply", reply_array, reply.GetAllocator());
+				for (auto &word: words) {
+					std::string lang = server()->detector().detect(word);
 
-				rapidjson::StringBuffer sbuf;
-				rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sbuf);
+					rapidjson::Value lv(lang.c_str(), lang.size(), reply.GetAllocator());
+					rapidjson::Value wv(word.c_str(), word.size(), reply.GetAllocator());
 
-				reply.Accept(writer);
-				sbuf.Put('\n');
+					rapidjson::Value tok(rapidjson::kObjectType);
+					tok.AddMember("word", wv, reply.GetAllocator());
+					tok.AddMember("language", lv, reply.GetAllocator());
+
+					if (want_stemming) {
+						std::string stemmed = server()->stemmer().stem(word, lang, "");
+						rapidjson::Value sv(stemmed.c_str(), stemmed.size(), reply.GetAllocator());
+						tok.AddMember("stem", sv, reply.GetAllocator());
+					}
+
+					tokens.PushBack(tok, reply.GetAllocator());
+				}
+
+				reply.AddMember("tokens", tokens, reply.GetAllocator());
+				std::string reply_data = reply.ToString();
 
 				thevoid::http_response http_reply;
 				http_reply.set_code(swarm::http_response::ok);
-				http_reply.headers().set_content_length(sbuf.Size());
+				http_reply.headers().set_content_length(reply_data.size());
 				http_reply.headers().set_content_type("text/json");
 
-				std::string sbuf_data = sbuf.GetString();
-
-				WLOG_DEBUG("grammar::request: completed processing, reply-size: %zd", sbuf.Size());
-
-				this->send_reply(std::move(http_reply), std::move(sbuf_data));
+				this->send_reply(std::move(http_reply), std::move(reply_data));
 			} catch (const std::exception &e) {
-				WLOG_ERROR("grammar::request: caught exception during processing: %s", e.what());
-				this->send_reply(swarm::http_response::bad_request);
+				send_error(swarm::http_response::bad_request, -EINVAL, "caught error during processing: %s",
+						e.what());
 				return;
 			}
 		}
-
-		bool parse_single_element(const rapidjson::Value &val, rapidjson::Value &reply,
-				rapidjson::Document::AllocatorType &allocator) {
-			if (!val.HasMember("data")) {
-				WLOG_ERROR("grammar::parse_single_element: no 'data' string in the document");
-				return false;
-			}
-
-			std::string data = val["data"].GetString();
-			bool normalize = val.HasMember("normalize");
-			WLOG_NOTICE("grammar::parse_single_element: length: %ld, data: '%s', normalize: %d",
-					data.size(), data.c_str(), normalize);
-
-			if (normalize) {
-				std::vector<std::string> roots = this->server()->lex().normalize_sentence(data);
-				std::ostringstream ss;
-
-				for (auto it = roots.begin(); it != roots.end(); ++it)
-					ss << *it << " ";
-
-				std::string text = ss.str();
-				rapidjson::Value norm(text.c_str(), text.size(), allocator);
-				reply.AddMember("normalize", norm, allocator);
-			} else {
-				rapidjson::Value data_obj(rapidjson::kObjectType);
-
-				std::vector<warp::word_features> ewords = this->server()->lex().lookup_sentence(data);
-				for (auto it = ewords.begin(); it != ewords.end(); ++it) {
-					rapidjson::Value features(rapidjson::kArrayType);
-
-					for (auto ef = it->fvec.begin(); ef != it->fvec.end(); ++ef) {
-						rapidjson::Value obj(rapidjson::kObjectType);
-
-						obj.AddMember("features", ef->features, allocator);
-						obj.AddMember("ending-length", ef->ending_len, allocator);
-
-						features.PushBack(obj, allocator);
-					}
-
-					data_obj.AddMember(it->word.c_str(), allocator, features, allocator);
-				}
-				reply.AddMember("lemmas", data_obj, allocator);
-
-				if (val.HasMember("grammar")) {
-					rapidjson::Value grammar_obj(rapidjson::kObjectType);
-					std::string grammar = val["grammar"].GetString();
-
-					std::vector<warp::grammar> grams = this->server()->lex().generate(grammar);
-					std::vector<int> starts = this->server()->lex().grammar_deduction_sentence(grams, data);
-
-					rapidjson::Value jstarts(rapidjson::kArrayType);
-					rapidjson::Value jstrings(rapidjson::kArrayType);
-
-					for (auto s = starts.begin(); s != starts.end(); ++s) {
-						jstarts.PushBack(*s, allocator);
-
-						std::ostringstream out;
-						for (size_t i = 0; i < grams.size(); ++i) {
-							out << ewords[i + *s].word;
-							if (i != grams.size() - 1)
-								out << " ";
-						}
-
-						rapidjson::Value tmp;
-						tmp.SetString(out.str().c_str(), allocator);
-
-						jstrings.PushBack(tmp, allocator);
-					}
-
-					grammar_obj.AddMember("starts", jstarts, allocator);
-					grammar_obj.AddMember("texts", jstrings, allocator);
-
-					reply.AddMember("grammar", grammar_obj, allocator);
-				}
-			}
-
-			return true;
-		}
 	};
 
+	warp::stemmer &stemmer() {
+		return m_stemmer;
+	}
+
+	warp::ngram::detector<std::string, std::string> &detector() {
+		return m_det;
+	}
 
 private:
-	warp::lex m_lex;
+	warp::ngram::detector<std::string, std::string> m_det;
+	warp::stemmer m_stemmer;
 };
 
 int main(int argc, char *argv[])

@@ -3,7 +3,7 @@
         "0.0.0.0:8101"
     ],
     "backlog": 512,
-    "threads": 2,
+    "threads": 16,
     "buffer_size": 65536,
 	"logger": {
         "level": "info",
@@ -30,9 +30,6 @@
     "request_header": "X-Request",
     "trace_header": "X-Trace",
     "application": {
-	"msgpack-input" : [
-			"/home/zbr/awork/warp/data/zal.0",  "/home/zbr/awork/warp/data/zal.1",
-			"/home/zbr/awork/warp/data/zal.2",  "/home/zbr/awork/warp/data/zal.3"
-		]		
+	    "language_detector_stats": "/home/zbr/awork/warp/build/lang.out"
     }
 }
