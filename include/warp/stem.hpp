@@ -1,6 +1,8 @@
 #pragma once
 
-#include "warp/libstemmer.h"
+#include "libstemmer.h"
+
+#include <ribosome/error.hpp>
 
 #include <map>
 #include <memory>
@@ -8,7 +10,7 @@
 #include <string>
 
 namespace ioremap { namespace warp {
-class raw_stemer {
+class raw_stemmer {
 public:
 	raw_stemmer(const char *lang, const char *enc) {
 		m_stem = sb_stemmer_new(lang, enc);
@@ -16,7 +18,7 @@ public:
 			const char *sname = "eng";
 			m_stem = sb_stemmer_new(sname, enc);
 			if (!m_stem)
-				throw_error(-ENOMEM, "could not create stemmer '%s'", sname);
+				ribosome::throw_error(-ENOMEM, "could not create stemmer '%s'", sname);
 		}
 	}
 
@@ -67,11 +69,12 @@ public:
 				cenc = enc.c_str();
 
 			stemmer_t st = std::make_shared<raw_stemmer>(lang.c_str(), cenc);
-			it = m_stemmers.insert(std::pair(lang, st));
+			auto p = m_stemmers.emplace(std::pair<std::string, stemmer_t>(lang, st));
+			it = p.first;
 		}
 
 		guard.unlock();
-		return it->second.convert(word.data(), word.size());
+		return it->second->convert(word.data(), word.size());
 	}
 private:
 	std::mutex m_lock;
