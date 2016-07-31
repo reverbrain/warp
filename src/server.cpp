@@ -70,6 +70,8 @@ public:
 			return false;
 		}
 
+		m_language_stats_path.assign(lang_stats);
+
 		on<on_lang>(
 			options::exact_match("/lang_detect"),
 			options::methods("POST")
@@ -77,6 +79,11 @@ public:
 
 		on<on_lang>(
 			options::exact_match("/stem"),
+			options::methods("POST")
+		);
+
+		on<on_lang>(
+			options::prefix_match("/add_language/"),
 			options::methods("POST")
 		);
 
@@ -114,6 +121,34 @@ public:
 			this->send_reply(std::move(http_reply), std::move(data));
 		}
 
+		void add_language(const thevoid::http_request &http_req, const std::string &buf) {
+			const auto &pc = http_req.url().path_components();
+			if (pc.size() != 2) {
+				send_error(swarm::http_response::bad_request, -EINVAL,
+						"there are %ld path components in %s, must be 2",
+							pc.size(), http_req.url().path().c_str());
+				return;
+			}
+
+			const std::string &lang = pc[1];
+
+			ribosome::html_parser html;
+
+			html.feed_text(buf);
+			std::string nohtml_request = html.text(" ");
+			std::string clear_request = prepare_text(nohtml_request);
+
+			server()->detector().load_text(clear_request, lang);
+			int err = server()->detector_save();
+			if (err) {
+				send_error(swarm::http_response::internal_server_error, err,
+						"could not save statistics data");
+				return;
+			}
+
+			this->send_reply(swarm::http_response::ok);
+		}
+
 		virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
 			bool want_stemming = false;
 
@@ -130,6 +165,12 @@ public:
 
 			std::string buf;
 			buf.assign(ptr, boost::asio::buffer_size(buffer));
+
+			if (http_req.url().path().find("/add_language") == 0) {
+				add_language(http_req, buf);
+				return;
+			}
+
 
 			doc.Parse<0>(buf.c_str());
 			if (doc.HasParseError()) {
@@ -205,7 +246,12 @@ public:
 		return m_det;
 	}
 
+	int detector_save() {
+		return m_det.save_file(m_language_stats_path.c_str());
+	}
+
 private:
+	std::string m_language_stats_path;
 	warp::ngram::detector<std::string, std::string> m_det;
 	warp::stemmer m_stemmer;
 };
