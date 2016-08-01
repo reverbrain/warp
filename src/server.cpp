@@ -54,6 +54,40 @@ static std::string prepare_text(const std::string &text)
 	return ribosome::lconvert::to_string(ribosome::lconvert::to_lower(ret));
 };
 
+template <typename Server>
+struct simple_request_stream_error : public thevoid::simple_request_stream<Server> {
+	void send_error(int status, int error, const char *fmt, ...) {
+		va_list args;
+		va_start(args, fmt);
+
+		char buffer[1024];
+		int sz = vsnprintf(buffer, sizeof(buffer), fmt, args);
+
+		BH_LOG(this->server()->logger(), SWARM_LOG_ERROR, "%s: %d", buffer, error);
+
+		warp::JsonValue val;
+		rapidjson::Value ev(rapidjson::kObjectType);
+
+
+		rapidjson::Value esv(buffer, sz, val.GetAllocator());
+		ev.AddMember("message", esv, val.GetAllocator());
+		ev.AddMember("code", error, val.GetAllocator());
+		val.AddMember("error", ev, val.GetAllocator());
+
+		va_end(args);
+
+		std::string data = val.ToString();
+
+		thevoid::http_response http_reply;
+		http_reply.set_code(status);
+		http_reply.headers().set_content_length(data.size());
+		http_reply.headers().set_content_type("text/json");
+
+		this->send_reply(std::move(http_reply), std::move(data));
+	}
+};
+
+
 class http_server : public thevoid::server<http_server>
 {
 public:
@@ -73,16 +107,16 @@ public:
 		m_language_stats_path.assign(lang_stats);
 
 		on<on_lang>(
-			options::exact_match("/lang_detect"),
+			options::exact_match("/tokenize"),
 			options::methods("POST")
 		);
 
-		on<on_lang>(
-			options::exact_match("/stem"),
+		on<on_convert>(
+			options::exact_match("/convert"),
 			options::methods("POST")
 		);
 
-		on<on_lang>(
+		on<on_add_language>(
 			options::prefix_match("/add_language/"),
 			options::methods("POST")
 		);
@@ -90,38 +124,8 @@ public:
 		return true;
 	}
 
-	struct on_lang : public thevoid::simple_request_stream<http_server> {
-		void send_error(int status, int error, const char *fmt, ...) {
-			va_list args;
-			va_start(args, fmt);
-
-			char buffer[1024];
-			int sz = vsnprintf(buffer, sizeof(buffer), fmt, args);
-
-			WLOG_ERROR("%s: %d", buffer, error);
-
-			warp::JsonValue val;
-			rapidjson::Value ev(rapidjson::kObjectType);
-
-
-			rapidjson::Value esv(buffer, sz, val.GetAllocator());
-			ev.AddMember("message", esv, val.GetAllocator());
-			ev.AddMember("code", error, val.GetAllocator());
-			val.AddMember("error", ev, val.GetAllocator());
-
-			va_end(args);
-
-			std::string data = val.ToString();
-
-			thevoid::http_response http_reply;
-			http_reply.set_code(status);
-			http_reply.headers().set_content_length(data.size());
-			http_reply.headers().set_content_type("text/json");
-
-			this->send_reply(std::move(http_reply), std::move(data));
-		}
-
-		void add_language(const thevoid::http_request &http_req, const std::string &buf) {
+	struct on_add_language : public simple_request_stream_error<http_server> {
+		virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
 			const auto &pc = http_req.url().path_components();
 			if (pc.size() != 2) {
 				send_error(swarm::http_response::bad_request, -EINVAL,
@@ -129,12 +133,18 @@ public:
 							pc.size(), http_req.url().path().c_str());
 				return;
 			}
-
 			const std::string &lang = pc[1];
 
-			ribosome::html_parser html;
+			const char *ptr = boost::asio::buffer_cast<const char*>(buffer);
+			if (!ptr) {
+				send_error(swarm::http_response::bad_request, -EINVAL, "document is empty");
+				return;
+			}
+			size_t size = boost::asio::buffer_size(buffer);
 
-			html.feed_text(buf);
+			ribosome::html_parser html;
+			html.feed_text(ptr, size);
+
 			std::string nohtml_request = html.text(" ");
 			std::string clear_request = prepare_text(nohtml_request);
 
@@ -148,11 +158,12 @@ public:
 
 			this->send_reply(swarm::http_response::ok);
 		}
+	};
 
+	struct on_convert : public simple_request_stream_error<http_server> {
 		virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
 			bool want_stemming = false;
-
-			if (http_req.url().path().find("/stem") == 0) {
+			if (http_req.url().query().has_item("stem")) {
 				want_stemming = true;
 			}
 
@@ -166,11 +177,90 @@ public:
 			std::string buf;
 			buf.assign(ptr, boost::asio::buffer_size(buffer));
 
-			if (http_req.url().path().find("/add_language") == 0) {
-				add_language(http_req, buf);
+			doc.Parse<0>(buf.c_str());
+			if (doc.HasParseError()) {
+				send_error(swarm::http_response::bad_request, -EINVAL, "document parsing error: %s, offset: %ld",
+						doc.GetParseError(), doc.GetErrorOffset());
 				return;
 			}
 
+			try {
+				warp::JsonValue reply;
+
+				auto request = warp::get_string(doc, "request");
+				if (!request) {
+					send_error(swarm::http_response::bad_request, -EINVAL,
+							"'request' member must be string");
+					return;
+				}
+				ribosome::html_parser html;
+				html.feed_text(request);
+				std::string nohtml_request = html.text(" ");
+
+				ribosome::split spl;
+				auto all_words = spl.convert_split_words(nohtml_request.data(), nohtml_request.size());
+				std::vector<std::string> words, stems;
+
+				for (auto &w: all_words) {
+					auto word = ribosome::lconvert::to_string(w);
+					words.push_back(word);
+
+					std::string lang = server()->detector().detect(word);
+
+					if (want_stemming) {
+						stems.push_back(server()->stemmer().stem(word, lang, ""));
+					}
+				}
+
+				auto join = [] (const std::vector<std::string> &words) -> std::string {
+					std::ostringstream ss;
+					std::copy(words.begin(), words.end(), std::ostream_iterator<std::string>(ss, " "));
+					return ss.str();
+				};
+
+				std::string words_joined = join(words);
+
+				rapidjson::Value cv(words_joined.c_str(), words_joined.size(), reply.GetAllocator());
+				reply.AddMember("text", cv, reply.GetAllocator());
+
+				if (want_stemming) {
+					std::string stems_joined = join(stems);
+					rapidjson::Value sv(stems_joined.c_str(), stems_joined.size(), reply.GetAllocator());
+					reply.AddMember("stem", sv, reply.GetAllocator());
+				}
+
+				std::string reply_data = reply.ToString();
+
+				thevoid::http_response http_reply;
+				http_reply.set_code(swarm::http_response::ok);
+				http_reply.headers().set_content_length(reply_data.size());
+				http_reply.headers().set_content_type("text/json");
+
+				this->send_reply(std::move(http_reply), std::move(reply_data));
+			} catch (const std::exception &e) {
+				send_error(swarm::http_response::bad_request, -EINVAL, "caught error during processing: %s",
+						e.what());
+				return;
+			}
+		}
+	};
+
+	struct on_lang : public simple_request_stream_error<http_server> {
+		virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
+			bool want_stemming = false;
+			if (http_req.url().query().has_item("stem")) {
+				want_stemming = true;
+			}
+
+			rapidjson::Document doc;
+			const char *ptr = boost::asio::buffer_cast<const char*>(buffer);
+			if (!ptr) {
+				send_error(swarm::http_response::bad_request, -EINVAL, "document is empty");
+				return;
+			}
+
+			std::string buf;
+			buf.assign(ptr, boost::asio::buffer_size(buffer));
 
 			doc.Parse<0>(buf.c_str());
 			if (doc.HasParseError()) {
