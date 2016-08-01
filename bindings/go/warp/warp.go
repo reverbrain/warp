@@ -1,18 +1,24 @@
 package warp
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"strconv"
 )
 
-type WarpEngine struct {
+type Engine struct {
 	convert_url	string
 	tokenize_url	string
 	tr		*http.Transport
 	client		*http.Client
 }
 
-func NewWarpEngine(addr string) (*WarpEngine, error) {
-	w := &WarpEngine {
+func NewEngine(addr string) (*Engine, error) {
+	w := &Engine {
 		convert_url: fmt.Sprintf("http://%s/convert", addr),
 		tokenize_url: fmt.Sprintf("http://%s/tokenize", addr),
 		tr:		&http.Transport {
@@ -34,22 +40,26 @@ type Token struct {
 	Positions	[]int64		`json:"positions"`
 }
 
-type TokenizedResult struct {
-	Tokens		[]Token		`json:"tokens"`
-}
-
-type ConvertedResult struct {
+type Converted struct {
 	Text		string		`json:"text"`
 	Stem		string		`json:"stem"`
 }
 
-type Request struct {
-	Request		string		`json:"request"`
+type Request map[string]string
+type TokenizedResult map[string][]Token
+type ConvertedResult map[string]Converted
+
+func CreateRequest() Request {
+	r := make(map[string]string)
+	return Request(r)
 }
 
+func (r Request) Insert(key, value string) {
+	r[key] = value
+}
 
-func (w *WarpEngine) send_request(url string, lr *Request) ([]byte, error) {
-	lr_packed, err := json.Marshal(&lr)
+func (w *Engine) send_request(url string, lr Request, want_stem bool) ([]byte, error) {
+	lr_packed, err := json.Marshal(lr)
 	if err != nil {
 		return nil, fmt.Errorf("cound not marshal lexical request: %+v, error: %v", lr, err)
 	}
@@ -57,14 +67,20 @@ func (w *WarpEngine) send_request(url string, lr *Request) ([]byte, error) {
 
 	http_request, err := http.NewRequest("POST", url, lr_body)
 	if err != nil {
-		return nil, fmt.Errorf("cound not create warp http request, url: %s, error: %v", w.url, err)
+		return nil, fmt.Errorf("cound not create warp http request, url: %s, error: %v", url, err)
 	}
 	xreq := strconv.Itoa(rand.Int())
 	http_request.Header.Set("X-Request", xreq)
 
+	if want_stem {
+		q := http_request.URL.Query()
+		q.Set("stem", "true")
+		http_request.URL.RawQuery = q.Encode()
+	}
+
 	resp, err := w.client.Do(http_request)
 	if err != nil {
-		return nil, fmt.Errorf("could not send warp request, url: %s, error: %v", w.url, err)
+		return nil, fmt.Errorf("could not send warp request, url: %s, error: %v", url, err)
 	}
 	defer resp.Body.Close()
 
@@ -80,8 +96,8 @@ func (w *WarpEngine) send_request(url string, lr *Request) ([]byte, error) {
 	return body, nil
 }
 
-func (w *WarpEngine) Convert(lr *Request) (*ConvertedResult, error) {
-	body, err := send_request(w.convert_url, lr)
+func (w *Engine) Convert(lr Request, want_stem bool) (ConvertedResult, error) {
+	body, err := w.send_request(w.convert_url, lr, want_stem)
 	if err != nil {
 		return nil, err
 	}
@@ -92,11 +108,11 @@ func (w *WarpEngine) Convert(lr *Request) (*ConvertedResult, error) {
 		return nil, fmt.Errorf("could not unpack warp response: '%s', error: %v", string(body), err)
 	}
 
-	return &res, nil
+	return res, nil
 }
 
-func (w *WarpEngine) Tokenize(lr *Request) (*TokenizedResult, error) {
-	body, err := send_request(w.tokenize_url, lr)
+func (w *Engine) Tokenize(lr Request, want_stem bool) (TokenizedResult, error) {
+	body, err := w.send_request(w.tokenize_url, lr, want_stem)
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +123,8 @@ func (w *WarpEngine) Tokenize(lr *Request) (*TokenizedResult, error) {
 		return nil, fmt.Errorf("could not unpack warp response: '%s', error: %v", string(body), err)
 	}
 
-	return &res, nil
+	return res, nil
 }
 
-func (w *WarpEngine) Close() {
+func (w *Engine) Close() {
 }
