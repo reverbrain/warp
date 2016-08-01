@@ -288,12 +288,11 @@ public:
 					ribosome::html_parser html;
 					html.feed_text(member_it->value.GetString());
 					std::string nohtml_request = html.text(" ");
-					std::string clear_request = prepare_text(nohtml_request);
 
 					rapidjson::Value tokens(rapidjson::kArrayType);
 
 					ribosome::split spl;
-					auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
+					auto all_words = spl.convert_split_words(nohtml_request.data(), nohtml_request.size());
 					std::map<std::string, std::vector<size_t>> words;
 					size_t pos = 0;
 					for (auto &w: all_words) {
