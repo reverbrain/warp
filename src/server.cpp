@@ -186,47 +186,53 @@ public:
 
 			try {
 				warp::JsonValue reply;
+				auto &alloc = reply.GetAllocator();
 
-				auto request = warp::get_string(doc, "request");
-				if (!request) {
-					send_error(swarm::http_response::bad_request, -EINVAL,
-							"'request' member must be string");
-					return;
-				}
-				ribosome::html_parser html;
-				html.feed_text(request);
-				std::string nohtml_request = html.text(" ");
+				for (auto member_it = doc.MemberBegin(), member_end = doc.MemberEnd();
+						member_it != member_end; ++member_it) {
+					if (!member_it->value.IsString()) {
+						continue;
+					}
 
-				ribosome::split spl;
-				auto all_words = spl.convert_split_words(nohtml_request.data(), nohtml_request.size());
-				std::vector<std::string> words, stems;
+					rapidjson::Value member(rapidjson::kObjectType);
 
-				for (auto &w: all_words) {
-					auto word = ribosome::lconvert::to_string(w);
-					words.push_back(word);
+					ribosome::html_parser html;
+					html.feed_text(member_it->value.GetString());
+					std::string nohtml_request = html.text(" ");
 
-					std::string lang = server()->detector().detect(word);
+					ribosome::split spl;
+					auto all_words = spl.convert_split_words(nohtml_request.data(), nohtml_request.size());
+					std::vector<std::string> words, stems;
+
+					for (auto &w: all_words) {
+						auto word = ribosome::lconvert::to_string(w);
+						words.push_back(word);
+
+						std::string lang = server()->detector().detect(word);
+
+						if (want_stemming) {
+							stems.push_back(server()->stemmer().stem(word, lang, ""));
+						}
+					}
+
+					auto join = [] (const std::vector<std::string> &words) -> std::string {
+						std::ostringstream ss;
+						std::copy(words.begin(), words.end(), std::ostream_iterator<std::string>(ss, " "));
+						return ss.str();
+					};
+
+					std::string words_joined = join(words);
+
+					rapidjson::Value cv(words_joined.c_str(), words_joined.size(), alloc);
+					member.AddMember("text", cv, alloc);
 
 					if (want_stemming) {
-						stems.push_back(server()->stemmer().stem(word, lang, ""));
+						std::string stems_joined = join(stems);
+						rapidjson::Value sv(stems_joined.c_str(), stems_joined.size(), alloc);
+						member.AddMember("stem", sv, alloc);
 					}
-				}
 
-				auto join = [] (const std::vector<std::string> &words) -> std::string {
-					std::ostringstream ss;
-					std::copy(words.begin(), words.end(), std::ostream_iterator<std::string>(ss, " "));
-					return ss.str();
-				};
-
-				std::string words_joined = join(words);
-
-				rapidjson::Value cv(words_joined.c_str(), words_joined.size(), reply.GetAllocator());
-				reply.AddMember("text", cv, reply.GetAllocator());
-
-				if (want_stemming) {
-					std::string stems_joined = join(stems);
-					rapidjson::Value sv(stems_joined.c_str(), stems_joined.size(), reply.GetAllocator());
-					reply.AddMember("stem", sv, reply.GetAllocator());
+					reply.AddMember(member_it->name, member, alloc);
 				}
 
 				std::string reply_data = reply.ToString();
@@ -271,65 +277,68 @@ public:
 
 			try {
 				warp::JsonValue reply;
+				auto &alloc = reply.GetAllocator();
 
-				auto request = warp::get_string(doc, "request");
-				if (!request) {
-					send_error(swarm::http_response::bad_request, -EINVAL,
-							"'request' member must be string");
-					return;
-				}
-				ribosome::html_parser html;
-				html.feed_text(request);
-				std::string nohtml_request = html.text(" ");
-				std::string clear_request = prepare_text(nohtml_request);
-
-				rapidjson::Value tokens(rapidjson::kArrayType);
-
-				ribosome::split spl;
-				auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
-				std::map<std::string, std::vector<size_t>> words;
-				size_t pos = 0;
-				for (auto &w: all_words) {
-					auto word = ribosome::lconvert::to_string(w);
-					auto it = words.find(word);
-					if (it == words.end()) {
-						words[word] = std::vector<size_t>({pos});
-					} else {
-						it->second.push_back(pos);
+				for (auto member_it = doc.MemberBegin(), member_end = doc.MemberEnd();
+						member_it != member_end; ++member_it) {
+					if (!member_it->value.IsString()) {
+						continue;
 					}
 
-					++pos;
-				}
+					ribosome::html_parser html;
+					html.feed_text(member_it->value.GetString());
+					std::string nohtml_request = html.text(" ");
+					std::string clear_request = prepare_text(nohtml_request);
 
-				for (auto &p: words) {
-					const auto &word = p.first;
-					const auto &positions = p.second;
+					rapidjson::Value tokens(rapidjson::kArrayType);
 
-					std::string lang = server()->detector().detect(word);
+					ribosome::split spl;
+					auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
+					std::map<std::string, std::vector<size_t>> words;
+					size_t pos = 0;
+					for (auto &w: all_words) {
+						auto word = ribosome::lconvert::to_string(w);
+						auto it = words.find(word);
+						if (it == words.end()) {
+							words[word] = std::vector<size_t>({pos});
+						} else {
+							it->second.push_back(pos);
+						}
 
-					rapidjson::Value lv(lang.c_str(), lang.size(), reply.GetAllocator());
-					rapidjson::Value wv(word.c_str(), word.size(), reply.GetAllocator());
-
-					rapidjson::Value tok(rapidjson::kObjectType);
-					tok.AddMember("word", wv, reply.GetAllocator());
-					tok.AddMember("language", lv, reply.GetAllocator());
-
-					rapidjson::Value pv(rapidjson::kArrayType);
-					for (auto pos: positions) {
-						pv.PushBack(pos, reply.GetAllocator());
-					}
-					tok.AddMember("positions", pv, reply.GetAllocator());
-
-					if (want_stemming) {
-						std::string stemmed = server()->stemmer().stem(word, lang, "");
-						rapidjson::Value sv(stemmed.c_str(), stemmed.size(), reply.GetAllocator());
-						tok.AddMember("stem", sv, reply.GetAllocator());
+						++pos;
 					}
 
-					tokens.PushBack(tok, reply.GetAllocator());
+					for (auto &p: words) {
+						const auto &word = p.first;
+						const auto &positions = p.second;
+
+						std::string lang = server()->detector().detect(word);
+
+						rapidjson::Value lv(lang.c_str(), lang.size(), alloc);
+						rapidjson::Value wv(word.c_str(), word.size(), alloc);
+
+						rapidjson::Value tok(rapidjson::kObjectType);
+						tok.AddMember("word", wv, alloc);
+						tok.AddMember("language", lv, alloc);
+
+						rapidjson::Value pv(rapidjson::kArrayType);
+						for (auto pos: positions) {
+							pv.PushBack(pos, alloc);
+						}
+						tok.AddMember("positions", pv, alloc);
+
+						if (want_stemming) {
+							std::string stemmed = server()->stemmer().stem(word, lang, "");
+							rapidjson::Value sv(stemmed.c_str(), stemmed.size(), alloc);
+							tok.AddMember("stem", sv, alloc);
+						}
+
+						tokens.PushBack(tok, alloc);
+					}
+
+					reply.AddMember(member_it->name, tokens, alloc);
 				}
 
-				reply.AddMember("tokens", tokens, reply.GetAllocator());
 				std::string reply_data = reply.ToString();
 
 				thevoid::http_response http_reply;
