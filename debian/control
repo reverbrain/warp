@@ -1,0 +1,41 @@
+Source: warp
+Section: devel
+Priority: optional
+Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
+Build-Depends:
+ cdbs,
+ cmake (>= 2.6),
+ debhelper (>= 7.0.50~),
+ ribosome-dev (>= 0.2.8),
+ libboost-dev,
+ libboost-system-dev,
+ libboost-program-options-dev,
+ libboost-thread-dev,
+ libmsgpack-dev,
+ libswarm3-dev,
+ libthevoid3-dev
+Standards-Version: 3.8.0
+Homepage: http://www.reverbrain.com/
+Vcs-Git: git://github.com/reverbrain/greylock.git
+Vcs-Browser: https://github.com/reverbrain/greylock
+
+Package: warp
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Warp is a lexical processor engine, it supports statistical language detection and word stemming.
+ It implementes high-performace HTTP server as well as pure C++ classes in its headers.
+ There is also testing application which allows to gather language statistics.
+ Go bindings are created for HTTP client, it supports tokenization and stemming conversions.
+
+Package: warp-dev
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+ ribosome-dev (>= 0.2.8),
+ libboost-dev,
+ libboost-system-dev,
+ libboost-program-options-dev,
+ libboost-thread-dev,
+ libmsgpack-dev,
+ libswarm3-dev,
+ libthevoid3-dev
+Description: Development files for warp lexical processor engine
