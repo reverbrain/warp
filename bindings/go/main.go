@@ -39,9 +39,10 @@ func main() {
 
 	r := warp.CreateRequest()
 	r.Insert(tt[0], tt[1])
+	r.WantStem = *stem
 
 	if *tokenize {
-		ret, err := w.Tokenize(r, *stem)
+		ret, err := w.Tokenize(r)
 		if err != nil {
 			log.Fatalf("Tokenization failed, request: %+v, error: %v", r, err)
 		}
@@ -60,7 +61,7 @@ func main() {
 	}
 
 	if *convert {
-		ret, err := w.Convert(r, *stem)
+		ret, err := w.Convert(r)
 		if err != nil {
 			log.Fatalf("Conversion failed, request: %+v, error: %v", r, err)
 		}

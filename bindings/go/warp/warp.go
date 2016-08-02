@@ -45,21 +45,27 @@ type Converted struct {
 	Stem		string		`json:"stem"`
 }
 
-type Request map[string]string
+type Request struct {
+	Query		map[string]string
+	WantStem	bool
+}
+
 type TokenizedResult map[string][]Token
 type ConvertedResult map[string]Converted
 
-func CreateRequest() Request {
-	r := make(map[string]string)
-	return Request(r)
+func CreateRequest() *Request {
+	return &Request {
+		Query: make(map[string]string),
+		WantStem: false,
+	}
 }
 
 func (r Request) Insert(key, value string) {
-	r[key] = value
+	r.Query[key] = value
 }
 
-func (w *Engine) send_request(url string, lr Request, want_stem bool) ([]byte, error) {
-	lr_packed, err := json.Marshal(lr)
+func (w *Engine) send_request(url string, lr *Request) ([]byte, error) {
+	lr_packed, err := json.Marshal(lr.Query)
 	if err != nil {
 		return nil, fmt.Errorf("cound not marshal lexical request: %+v, error: %v", lr, err)
 	}
@@ -72,7 +78,7 @@ func (w *Engine) send_request(url string, lr Request, want_stem bool) ([]byte, e
 	xreq := strconv.Itoa(rand.Int())
 	http_request.Header.Set("X-Request", xreq)
 
-	if want_stem {
+	if lr.WantStem {
 		q := http_request.URL.Query()
 		q.Set("stem", "true")
 		http_request.URL.RawQuery = q.Encode()
@@ -96,8 +102,8 @@ func (w *Engine) send_request(url string, lr Request, want_stem bool) ([]byte, e
 	return body, nil
 }
 
-func (w *Engine) Convert(lr Request, want_stem bool) (ConvertedResult, error) {
-	body, err := w.send_request(w.convert_url, lr, want_stem)
+func (w *Engine) Convert(lr *Request) (ConvertedResult, error) {
+	body, err := w.send_request(w.convert_url, lr)
 	if err != nil {
 		return nil, err
 	}
@@ -111,8 +117,8 @@ func (w *Engine) Convert(lr Request, want_stem bool) (ConvertedResult, error) {
 	return res, nil
 }
 
-func (w *Engine) Tokenize(lr Request, want_stem bool) (TokenizedResult, error) {
-	body, err := w.send_request(w.tokenize_url, lr, want_stem)
+func (w *Engine) Tokenize(lr *Request) (TokenizedResult, error) {
+	body, err := w.send_request(w.tokenize_url, lr)
 	if err != nil {
 		return nil, err
 	}
