@@ -199,9 +199,10 @@ public:
 					ribosome::html_parser html;
 					html.feed_text(member_it->value.GetString());
 					std::string nohtml_request = html.text(" ");
+					auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
 
 					ribosome::split spl;
-					auto all_words = spl.convert_split_words(nohtml_request.data(), nohtml_request.size());
+					auto all_words = spl.convert_split_words(lower_request.data(), lower_request.size());
 					std::vector<std::string> words, stems;
 
 					for (auto &w: all_words) {
@@ -288,11 +289,12 @@ public:
 					ribosome::html_parser html;
 					html.feed_text(member_it->value.GetString());
 					std::string nohtml_request = html.text(" ");
+					auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
 
 					rapidjson::Value tokens(rapidjson::kArrayType);
 
 					ribosome::split spl;
-					auto all_words = spl.convert_split_words(nohtml_request.data(), nohtml_request.size());
+					auto all_words = spl.convert_split_words(lower_request.data(), lower_request.size());
 					std::map<std::string, std::vector<size_t>> words;
 					size_t pos = 0;
 					for (auto &w: all_words) {
