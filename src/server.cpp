@@ -44,14 +44,18 @@
 
 using namespace ioremap;
 
-static std::string prepare_text(const std::string &text)
+static std::string clear_text(const std::string &text)
+{
+	return boost::algorithm::trim_fill_copy_if(text, " ",
+		boost::is_any_of("1234567890-=!@#$%^&*()_+[]\\{}|';\":/.,?><\n\r\t "));
+};
+
+static std::string clear_text_symbols(const std::string &text)
 {
 	std::string trimmed = boost::algorithm::trim_fill_copy_if(text, " ",
-		boost::is_any_of("1234567890-=!@#$%^&*()_+[]\\{}|';\":/.,?><\n\r\t "));
+		boost::is_any_of("-=!@#$%^&*()_+[]\\{}|';\":/.,?><\n\r\t "));
 
-	auto ret = ribosome::lconvert::from_utf8(trimmed);
-	//return ribosome::lconvert::to_lower(ret);
-	return ribosome::lconvert::to_string(ribosome::lconvert::to_lower(ret));
+	return trimmed;
 };
 
 template <typename Server>
@@ -146,7 +150,8 @@ public:
 			html.feed_text(ptr, size);
 
 			std::string nohtml_request = html.text(" ");
-			std::string clear_request = prepare_text(nohtml_request);
+			auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
+			std::string clear_request = clear_text(lower_request);
 
 			server()->detector().load_text(clear_request, lang);
 			int err = server()->detector_save();
@@ -200,9 +205,10 @@ public:
 					html.feed_text(member_it->value.GetString());
 					std::string nohtml_request = html.text(" ");
 					auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
+					auto clear_request = clear_text_symbols(lower_request);
 
 					ribosome::split spl;
-					auto all_words = spl.convert_split_words(lower_request.data(), lower_request.size());
+					auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
 					std::vector<std::string> words, stems;
 
 					for (auto &w: all_words) {
@@ -218,7 +224,11 @@ public:
 
 					auto join = [] (const std::vector<std::string> &words) -> std::string {
 						std::ostringstream ss;
-						std::copy(words.begin(), words.end(), std::ostream_iterator<std::string>(ss, " "));
+						for (size_t i = 0; i < words.size(); ++i) {
+							ss << words[i];
+							if (i != words.size() - 1)
+								ss << " ";
+						}
 						return ss.str();
 					};
 
@@ -290,11 +300,12 @@ public:
 					html.feed_text(member_it->value.GetString());
 					std::string nohtml_request = html.text(" ");
 					auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
+					auto clear_request = clear_text_symbols(lower_request);
 
 					rapidjson::Value tokens(rapidjson::kArrayType);
 
 					ribosome::split spl;
-					auto all_words = spl.convert_split_words(lower_request.data(), lower_request.size());
+					auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
 					std::map<std::string, std::vector<size_t>> words;
 					size_t pos = 0;
 					for (auto &w: all_words) {
