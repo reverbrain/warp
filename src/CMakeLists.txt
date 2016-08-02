@@ -17,6 +17,12 @@ if (THEVOID)
 		pthread
 		warp_stem
 	)
+
+	install(TARGETS	warp_server
+		RUNTIME DESTINATION bin COMPONENT runtime
+	)
 endif()
 
-
+install(TARGETS	warp_language_detector
+	RUNTIME DESTINATION bin COMPONENT runtime
+)
