@@ -11,6 +11,7 @@ func main() {
 	tokenize := flag.Bool("tokenize", false, "tokenize request")
 	convert := flag.Bool("convert", false, "convert request")
 	stem := flag.Bool("stem", false, "whether to stem reply or not")
+	urls := flag.Bool("urls", false, "whether to return array of all urls found in request [a href, img src]")
 	addr := flag.String("warp", "", "warp server address")
 	text := flag.String("text", "", "message to process, format: prefix:string")
 
@@ -40,6 +41,13 @@ func main() {
 	r := warp.CreateRequest()
 	r.Insert(tt[0], tt[1])
 	r.WantStem = *stem
+	r.WantUrls = *urls
+
+	dump_urls := func(urls []string) {
+		for _, url := range urls {
+			log.Printf("    url: %s\n", url)
+		}
+	};
 
 	if *tokenize {
 		ret, err := w.Tokenize(r)
@@ -47,9 +55,11 @@ func main() {
 			log.Fatalf("Tokenization failed, request: %+v, error: %v", r, err)
 		}
 
-		for k, tr := range ret {
+		for k, tr := range ret.Result {
 			log.Printf("%s:\n", k)
-			for _, t := range tr {
+			dump_urls(tr.Urls)
+
+			for _, t := range tr.Tokens {
 				log.Printf("    word: %s\n", t.Word)
 				if *stem {
 					log.Printf("    stem: %s\n", t.Stem)
@@ -66,8 +76,10 @@ func main() {
 			log.Fatalf("Conversion failed, request: %+v, error: %v", r, err)
 		}
 
-		for k, cr := range ret {
+		for k, cr := range ret.Result {
 			log.Printf("%s:\n", k)
+			dump_urls(cr.Urls)
+
 			log.Printf("    text: %s\n", cr.Text)
 			if *stem {
 				log.Printf("    stem: %s\n\n", cr.Stem)

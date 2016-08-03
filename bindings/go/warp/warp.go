@@ -40,23 +40,35 @@ type Token struct {
 	Positions	[]int64		`json:"positions"`
 }
 
+type Tokenized struct {
+	Urls		[]string	`json:"urls"`
+	Tokens		[]Token		`json:"tokens"`
+}
+
 type Converted struct {
+	Urls		[]string	`json:"urls"`
 	Text		string		`json:"text"`
 	Stem		string		`json:"stem"`
 }
 
 type Request struct {
-	Query		map[string]string
-	WantStem	bool
+	Query		map[string]string	`json:"request"`
+	WantStem	bool			`json:"-"`
+	WantUrls	bool			`json:"-"`
 }
 
-type TokenizedResult map[string][]Token
-type ConvertedResult map[string]Converted
+type TokenizedResult struct {
+	Result		map[string]Tokenized	`json:"tokens"`
+}
+type ConvertedResult struct {
+	Result		map[string]Converted	`json:"converted"`
+}
 
 func CreateRequest() *Request {
 	return &Request {
 		Query: make(map[string]string),
 		WantStem: false,
+		WantUrls: false,
 	}
 }
 
@@ -65,7 +77,7 @@ func (r Request) Insert(key, value string) {
 }
 
 func (w *Engine) send_request(url string, lr *Request) ([]byte, error) {
-	lr_packed, err := json.Marshal(lr.Query)
+	lr_packed, err := json.Marshal(lr)
 	if err != nil {
 		return nil, fmt.Errorf("cound not marshal lexical request: %+v, error: %v", lr, err)
 	}
@@ -78,11 +90,14 @@ func (w *Engine) send_request(url string, lr *Request) ([]byte, error) {
 	xreq := strconv.Itoa(rand.Int())
 	http_request.Header.Set("X-Request", xreq)
 
+	q := http_request.URL.Query()
 	if lr.WantStem {
-		q := http_request.URL.Query()
 		q.Set("stem", "true")
-		http_request.URL.RawQuery = q.Encode()
 	}
+	if lr.WantUrls {
+		q.Set("urls", "true")
+	}
+	http_request.URL.RawQuery = q.Encode()
 
 	resp, err := w.client.Do(http_request)
 	if err != nil {
@@ -102,34 +117,34 @@ func (w *Engine) send_request(url string, lr *Request) ([]byte, error) {
 	return body, nil
 }
 
-func (w *Engine) Convert(lr *Request) (ConvertedResult, error) {
+func (w *Engine) Convert(lr *Request) (*ConvertedResult, error) {
 	body, err := w.send_request(w.convert_url, lr)
 	if err != nil {
 		return nil, err
 	}
 
 	var res ConvertedResult
-	err = json.Unmarshal(body, &res)
+	err = json.Unmarshal(body, &res.Result)
 	if err != nil {
 		return nil, fmt.Errorf("could not unpack warp response: '%s', error: %v", string(body), err)
 	}
 
-	return res, nil
+	return &res, nil
 }
 
-func (w *Engine) Tokenize(lr *Request) (TokenizedResult, error) {
+func (w *Engine) Tokenize(lr *Request) (*TokenizedResult, error) {
 	body, err := w.send_request(w.tokenize_url, lr)
 	if err != nil {
 		return nil, err
 	}
 
 	var res TokenizedResult
-	err = json.Unmarshal(body, &res)
+	err = json.Unmarshal(body, &res.Result)
 	if err != nil {
 		return nil, fmt.Errorf("could not unpack warp response: '%s', error: %v", string(body), err)
 	}
 
-	return res, nil
+	return &res, nil
 }
 
 func (w *Engine) Close() {
