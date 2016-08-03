@@ -115,7 +115,7 @@ public:
 			options::methods("POST")
 		);
 
-		on<on_convert>(
+		on<on_lang>(
 			options::exact_match("/convert"),
 			options::methods("POST")
 		);
@@ -165,108 +165,16 @@ public:
 		}
 	};
 
-	struct on_convert : public simple_request_stream_error<http_server> {
-		virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
-			bool want_stemming = false;
-			if (http_req.url().query().has_item("stem")) {
-				want_stemming = true;
-			}
-
-			rapidjson::Document doc;
-			const char *ptr = boost::asio::buffer_cast<const char*>(buffer);
-			if (!ptr) {
-				send_error(swarm::http_response::bad_request, -EINVAL, "document is empty");
-				return;
-			}
-
-			std::string buf;
-			buf.assign(ptr, boost::asio::buffer_size(buffer));
-
-			doc.Parse<0>(buf.c_str());
-			if (doc.HasParseError()) {
-				send_error(swarm::http_response::bad_request, -EINVAL, "document parsing error: %s, offset: %ld",
-						doc.GetParseError(), doc.GetErrorOffset());
-				return;
-			}
-
-			try {
-				warp::JsonValue reply;
-				auto &alloc = reply.GetAllocator();
-
-				for (auto member_it = doc.MemberBegin(), member_end = doc.MemberEnd();
-						member_it != member_end; ++member_it) {
-					if (!member_it->value.IsString()) {
-						continue;
-					}
-
-					rapidjson::Value member(rapidjson::kObjectType);
-
-					ribosome::html_parser html;
-					html.feed_text(member_it->value.GetString());
-					std::string nohtml_request = html.text(" ");
-					auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
-					auto clear_request = clear_text_symbols(lower_request);
-
-					ribosome::split spl;
-					auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
-					std::vector<std::string> words, stems;
-
-					for (auto &w: all_words) {
-						auto word = ribosome::lconvert::to_string(w);
-						words.push_back(word);
-
-						std::string lang = server()->detector().detect(word);
-
-						if (want_stemming) {
-							stems.push_back(server()->stemmer().stem(word, lang, ""));
-						}
-					}
-
-					auto join = [] (const std::vector<std::string> &words) -> std::string {
-						std::ostringstream ss;
-						for (size_t i = 0; i < words.size(); ++i) {
-							ss << words[i];
-							if (i != words.size() - 1)
-								ss << " ";
-						}
-						return ss.str();
-					};
-
-					std::string words_joined = join(words);
-
-					rapidjson::Value cv(words_joined.c_str(), words_joined.size(), alloc);
-					member.AddMember("text", cv, alloc);
-
-					if (want_stemming) {
-						std::string stems_joined = join(stems);
-						rapidjson::Value sv(stems_joined.c_str(), stems_joined.size(), alloc);
-						member.AddMember("stem", sv, alloc);
-					}
-
-					reply.AddMember(member_it->name, member, alloc);
-				}
-
-				std::string reply_data = reply.ToString();
-
-				thevoid::http_response http_reply;
-				http_reply.set_code(swarm::http_response::ok);
-				http_reply.headers().set_content_length(reply_data.size());
-				http_reply.headers().set_content_type("text/json");
-
-				this->send_reply(std::move(http_reply), std::move(reply_data));
-			} catch (const std::exception &e) {
-				send_error(swarm::http_response::bad_request, -EINVAL, "caught error during processing: %s",
-						e.what());
-				return;
-			}
-		}
-	};
-
 	struct on_lang : public simple_request_stream_error<http_server> {
 		virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
-			bool want_stemming = false;
 			if (http_req.url().query().has_item("stem")) {
-				want_stemming = true;
+				m_want_stemming = true;
+			}
+			if (http_req.url().query().has_item("urls")) {
+				m_want_urls = true;
+			}
+			if (http_req.url().path().find("/tokenize") == 0) {
+				m_tokenize = true;
 			}
 
 			rapidjson::Document doc;
@@ -286,85 +194,157 @@ public:
 				return;
 			}
 
-			try {
-				warp::JsonValue reply;
-				auto &alloc = reply.GetAllocator();
+			warp::JsonValue reply;
+			auto &alloc = reply.GetAllocator();
 
-				for (auto member_it = doc.MemberBegin(), member_end = doc.MemberEnd();
-						member_it != member_end; ++member_it) {
-					if (!member_it->value.IsString()) {
-						continue;
-					}
-
-					ribosome::html_parser html;
-					html.feed_text(member_it->value.GetString());
-					std::string nohtml_request = html.text(" ");
-					auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
-					auto clear_request = clear_text_symbols(lower_request);
-
-					rapidjson::Value tokens(rapidjson::kArrayType);
-
-					ribosome::split spl;
-					auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
-					std::map<std::string, std::vector<size_t>> words;
-					size_t pos = 0;
-					for (auto &w: all_words) {
-						auto word = ribosome::lconvert::to_string(w);
-						auto it = words.find(word);
-						if (it == words.end()) {
-							words[word] = std::vector<size_t>({pos});
-						} else {
-							it->second.push_back(pos);
-						}
-
-						++pos;
-					}
-
-					for (auto &p: words) {
-						const auto &word = p.first;
-						const auto &positions = p.second;
-
-						std::string lang = server()->detector().detect(word);
-
-						rapidjson::Value lv(lang.c_str(), lang.size(), alloc);
-						rapidjson::Value wv(word.c_str(), word.size(), alloc);
-
-						rapidjson::Value tok(rapidjson::kObjectType);
-						tok.AddMember("word", wv, alloc);
-						tok.AddMember("language", lv, alloc);
-
-						rapidjson::Value pv(rapidjson::kArrayType);
-						for (auto pos: positions) {
-							pv.PushBack(pos, alloc);
-						}
-						tok.AddMember("positions", pv, alloc);
-
-						if (want_stemming) {
-							std::string stemmed = server()->stemmer().stem(word, lang, "");
-							rapidjson::Value sv(stemmed.c_str(), stemmed.size(), alloc);
-							tok.AddMember("stem", sv, alloc);
-						}
-
-						tokens.PushBack(tok, alloc);
-					}
-
-					reply.AddMember(member_it->name, tokens, alloc);
-				}
-
-				std::string reply_data = reply.ToString();
-
-				thevoid::http_response http_reply;
-				http_reply.set_code(swarm::http_response::ok);
-				http_reply.headers().set_content_length(reply_data.size());
-				http_reply.headers().set_content_type("text/json");
-
-				this->send_reply(std::move(http_reply), std::move(reply_data));
-			} catch (const std::exception &e) {
-				send_error(swarm::http_response::bad_request, -EINVAL, "caught error during processing: %s",
-						e.what());
+			const auto &req = warp::get_object(doc, "request");
+			if (!req.IsObject()) {
+				send_error(swarm::http_response::bad_request, -ENOENT, "'request' must be object");
 				return;
 			}
+
+			for (auto member_it = req.MemberBegin(), member_end = req.MemberEnd();
+					member_it != member_end; ++member_it) {
+				if (!member_it->value.IsString()) {
+					continue;
+				}
+
+				rapidjson::Value member(rapidjson::kObjectType);
+
+				ribosome::html_parser html;
+				html.feed_text(member_it->value.GetString());
+
+				if (m_want_urls) {
+					rapidjson::Value uarray(rapidjson::kArrayType);
+					for (const auto &url: html.urls()) {
+						rapidjson::Value uv(url.c_str(), url.size(), alloc);
+						uarray.PushBack(uv, alloc);
+					}
+
+					member.AddMember("urls", uarray, alloc);
+				}
+
+				std::string nohtml_request = html.text(" ");
+				auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
+				auto clear_request = clear_text_symbols(lower_request);
+
+				ribosome::split spl;
+				auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
+
+				if (m_tokenize) {
+					tokenize(member, alloc, all_words);
+				} else {
+					convert(member, alloc, all_words);
+				}
+
+				// we can not use AddMember(member_it->name, member, alloc) here,
+				// since member_it->name is const_iterator and for some weird reason
+				// AddMember() only accepts reference to non-const object, although
+				// it is not modified internally.
+				reply.AddMember(member_it->name.GetString(), alloc, member, alloc);
+			}
+
+			std::string reply_data = reply.ToString();
+
+			thevoid::http_response http_reply;
+			http_reply.set_code(swarm::http_response::ok);
+			http_reply.headers().set_content_length(reply_data.size());
+			http_reply.headers().set_content_type("text/json");
+
+			this->send_reply(std::move(http_reply), std::move(reply_data));
 		}
+
+	private:
+		bool m_tokenize = false;
+		bool m_want_stemming = false;
+		bool m_want_urls = false;
+
+		void tokenize(rapidjson::Value &member, rapidjson::Document::AllocatorType &alloc,
+				const std::vector<ribosome::lstring> &all_words) {
+			rapidjson::Value tokens(rapidjson::kArrayType);
+
+			std::map<std::string, std::vector<size_t>> words;
+			size_t pos = 0;
+			for (auto &w: all_words) {
+				auto word = ribosome::lconvert::to_string(w);
+				auto it = words.find(word);
+				if (it == words.end()) {
+					words[word] = std::vector<size_t>({pos});
+				} else {
+					it->second.push_back(pos);
+				}
+
+				++pos;
+			}
+
+			for (auto &p: words) {
+				const auto &word = p.first;
+				const auto &positions = p.second;
+
+				std::string lang = server()->detector().detect(word);
+
+				rapidjson::Value lv(lang.c_str(), lang.size(), alloc);
+				rapidjson::Value wv(word.c_str(), word.size(), alloc);
+
+				rapidjson::Value tok(rapidjson::kObjectType);
+				tok.AddMember("word", wv, alloc);
+				tok.AddMember("language", lv, alloc);
+
+				rapidjson::Value pv(rapidjson::kArrayType);
+				for (auto pos: positions) {
+					pv.PushBack(pos, alloc);
+				}
+				tok.AddMember("positions", pv, alloc);
+
+				if (m_want_stemming) {
+					std::string stemmed = server()->stemmer().stem(word, lang, "");
+					rapidjson::Value sv(stemmed.c_str(), stemmed.size(), alloc);
+					tok.AddMember("stem", sv, alloc);
+				}
+
+				tokens.PushBack(tok, alloc);
+			}
+
+			member.AddMember("tokens", tokens, alloc);
+		}
+
+		void convert(rapidjson::Value &member, rapidjson::Document::AllocatorType &alloc,
+				const std::vector<ribosome::lstring> &all_words) {
+			std::vector<std::string> words, stems;
+
+			for (auto &w: all_words) {
+				auto word = ribosome::lconvert::to_string(w);
+				words.push_back(word);
+
+				std::string lang = server()->detector().detect(word);
+
+				if (m_want_stemming) {
+					stems.push_back(server()->stemmer().stem(word, lang, ""));
+				}
+			}
+
+			auto join = [] (const std::vector<std::string> &words) -> std::string {
+				std::ostringstream ss;
+				for (size_t i = 0; i < words.size(); ++i) {
+					ss << words[i];
+					if (i != words.size() - 1)
+						ss << " ";
+				}
+				return ss.str();
+			};
+
+			std::string words_joined = join(words);
+
+			rapidjson::Value cv(words_joined.c_str(), words_joined.size(), alloc);
+			member.AddMember("text", cv, alloc);
+
+			if (m_want_stemming) {
+				std::string stems_joined = join(stems);
+				rapidjson::Value sv(stems_joined.c_str(), stems_joined.size(), alloc);
+				member.AddMember("stem", sv, alloc);
+			}
+		}
+
 	};
 
 	warp::stemmer &stemmer() {
