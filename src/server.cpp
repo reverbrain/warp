@@ -14,19 +14,16 @@
  * limitations under the License.
  */
 
+#include "warp/error_check.hpp"
 #include "warp/json.hpp"
 #include "warp/jsonvalue.hpp"
 #include "warp/ngram.hpp"
 #include "warp/stem.hpp"
+#include "warp/thevoid_stream.hpp"
 
 #include <swarm/logger.hpp>
 
 #include <thevoid/server.hpp>
-#include <thevoid/stream.hpp>
-
-#include <thevoid/rapidjson/document.h>
-#include <thevoid/rapidjson/stringbuffer.h>
-#include <thevoid/rapidjson/prettywriter.h>
 
 #include <ribosome/error.hpp>
 #include <ribosome/html.hpp>
@@ -44,53 +41,13 @@
 
 using namespace ioremap;
 
+static std::string clear_symbols = "~`1234567890-=!@#$%^&*()_+[]\\{}|';\":/.,?><\n\r\t ";
+static std::string clear_symbols_without_numbers = "~`-=!@#$%^&*()_+[]\\{}|';\":/.,?><\n\r\t ";
+
 static std::string clear_text(const std::string &text)
 {
-	return boost::algorithm::trim_fill_copy_if(text, " ",
-		boost::is_any_of("1234567890-=!@#$%^&*()_+[]\\{}|';\":/.,?><\n\r\t "));
+	return boost::algorithm::trim_fill_copy_if(text, " ", boost::is_any_of(clear_symbols));
 };
-
-static std::string clear_text_symbols(const std::string &text)
-{
-	std::string trimmed = boost::algorithm::trim_fill_copy_if(text, " ",
-		boost::is_any_of("-=!@#$%^&*()_+[]\\{}|';\":/.,?><\n\r\t "));
-
-	return trimmed;
-};
-
-template <typename Server>
-struct simple_request_stream_error : public thevoid::simple_request_stream<Server> {
-	void send_error(int status, int error, const char *fmt, ...) {
-		va_list args;
-		va_start(args, fmt);
-
-		char buffer[1024];
-		int sz = vsnprintf(buffer, sizeof(buffer), fmt, args);
-
-		BH_LOG(this->server()->logger(), SWARM_LOG_ERROR, "%s: %d", buffer, error);
-
-		warp::JsonValue val;
-		rapidjson::Value ev(rapidjson::kObjectType);
-
-
-		rapidjson::Value esv(buffer, sz, val.GetAllocator());
-		ev.AddMember("message", esv, val.GetAllocator());
-		ev.AddMember("code", error, val.GetAllocator());
-		val.AddMember("error", ev, val.GetAllocator());
-
-		va_end(args);
-
-		std::string data = val.ToString();
-
-		thevoid::http_response http_reply;
-		http_reply.set_code(status);
-		http_reply.headers().set_content_length(data.size());
-		http_reply.headers().set_content_type("text/json");
-
-		this->send_reply(std::move(http_reply), std::move(data));
-	}
-};
-
 
 class http_server : public thevoid::server<http_server>
 {
@@ -114,7 +71,6 @@ public:
 			options::exact_match("/tokenize"),
 			options::methods("POST")
 		);
-
 		on<on_lang>(
 			options::exact_match("/convert"),
 			options::methods("POST")
@@ -124,11 +80,16 @@ public:
 			options::prefix_match("/add_language/"),
 			options::methods("POST")
 		);
-
+#if 0
+		on<warp::on_error_check<http_server>>(
+			options::exact_match("/error_check"),
+			options::methods("POST")
+		);
+#endif
 		return true;
 	}
 
-	struct on_add_language : public simple_request_stream_error<http_server> {
+	struct on_add_language : public thevoid::simple_request_stream_error<http_server> {
 		virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
 			const auto &pc = http_req.url().path_components();
 			if (pc.size() != 2) {
@@ -165,7 +126,7 @@ public:
 		}
 	};
 
-	struct on_lang : public simple_request_stream_error<http_server> {
+	struct on_lang : public thevoid::simple_request_stream_error<http_server> {
 		virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
 			if (http_req.url().query().has_item("stem")) {
 				m_want_stemming = true;
@@ -226,10 +187,10 @@ public:
 
 				std::string nohtml_request = html.text(" ");
 				auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
-				auto clear_request = clear_text_symbols(lower_request);
 
 				ribosome::split spl;
-				auto all_words = spl.convert_split_words(clear_request.data(), clear_request.size());
+				auto all_words = spl.convert_split_words(lower_request.data(), lower_request.size(),
+						clear_symbols_without_numbers);
 
 				if (m_tokenize) {
 					tokenize(member, alloc, all_words);
@@ -351,7 +312,7 @@ public:
 		return m_stemmer;
 	}
 
-	warp::ngram::detector<std::string, std::string> &detector() {
+	warp::detector<std::string, std::string> &detector() {
 		return m_det;
 	}
 
@@ -361,7 +322,7 @@ public:
 
 private:
 	std::string m_language_stats_path;
-	warp::ngram::detector<std::string, std::string> m_det;
+	warp::detector<std::string, std::string> m_det;
 	warp::stemmer m_stemmer;
 };
 
