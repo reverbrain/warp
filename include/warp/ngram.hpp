@@ -26,7 +26,7 @@
 
 #include <msgpack.hpp>
 
-namespace ioremap { namespace warp { namespace ngram {
+namespace ioremap { namespace warp {
 template <typename S>
 class ngram {
 public:
@@ -250,6 +250,6 @@ private:
 	std::map<D, probability<S>> m_probs;
 };
 
-}}} // namespace ioremap::warp::ngram
+}} // namespace ioremap::warp
 
 #endif /* __WARP_NGRAM_HPP */
