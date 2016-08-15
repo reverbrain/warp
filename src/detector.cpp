@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 	};
 
 
-	warp::ngram::detector<std::string, std::string> det;
+	warp::detector<std::string, std::string> det;
 
 	if (load_path.size()) {
 		int err = det.load_file(load_path.c_str());
