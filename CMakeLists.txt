@@ -16,6 +16,7 @@ find_package(Ribosome REQUIRED)
 
 INCLUDE(cmake/locate_library.cmake)
 LOCATE_LIBRARY(MSGPACK "msgpack.hpp" "msgpack")
+LOCATE_LIBRARY(ROCKSDB "rocksdb/db.h" "rocksdb")
 
 option(THEVOID "Build thevoid server for lexical parsing" ON)
 if (THEVOID)
@@ -28,16 +29,9 @@ include_directories(${PROJECT_SOURCE_DIR}/include
 	${Boost_INCLUDE_DIRS}
 	${MSGPACK_INCLUDE_DIRS}
 	${RIBOSOME_INCLUDE_DIRS}
+	${ROCKSDB_INCLUDE_DIRS}
 	${SWARM_INCLUDE_DIRS}
 	${THEVOID_INCLUDE_DIRS}
-)
-
-link_directories(
-	${Boost_LIBRARY_DIRS}
-	${MSGPACK_LIBRARY_DIRS}
-	${RIBOSOME_LIBRARY_DIRS}
-	${SWARM_LIBRARY_DIRS}
-	${THEVOID_LIBRARY_DIRS}
 )
 
 add_subdirectory(stem)
