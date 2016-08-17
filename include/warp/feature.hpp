@@ -18,19 +18,21 @@
 #define __WARP_FEATURE_HPP
 
 #include <algorithm>
+#include <atomic>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <string>
 #include <set>
 
-#include <boost/locale.hpp>
+#include <boost/algorithm/string.hpp>
 
-#include "timer.hpp"
+#include <ribosome/lstring.hpp>
+#include <ribosome/timer.hpp>
+
+#include <msgpack.hpp>
 
 namespace ioremap { namespace warp {
-
-namespace lb = boost::locale::boundary;
 
 struct token_entity {
 	token_entity() : position(-1) {}
@@ -57,7 +59,14 @@ struct parser {
 			++unique;
 	}
 
-	token_entity try_parse(const std::string &token) {
+	void push(const std::initializer_list<std::string> &l) {
+		for (auto it = l.begin(); it != l.end(); ++it) {
+			if (insert(*it, unique))
+				++unique;
+		}
+	}
+
+	token_entity try_parse(const std::string &token) const {
 		token_entity tok;
 
 		auto it = t2p.find(token);
@@ -75,22 +84,22 @@ struct parser {
 			t.position = position;
 
 			t2p[token] = t;
-
 			//std::cout << token << ": " << position << std::endl;
+			return true;
 		}
 
-		return pos == t2p.end();
+		return false;
 	}
 
 	parser() : unique(0) {
 		push({ "им", "род", "дат", "вин", "твор", "пр" });
-		push({ std::string("ед"), "мн" });
-		push({ std::string("неод"), "од" });
-		push({ std::string("полн"), "кр" });
+		push({ "ед", "мн" });
+		push({ "неод", "од" });
+		push({ "полн", "кр" });
 		push({ "муж", "жен", "сред", "мж" });
 		push("устар");
-		push({ std::string("прич"), "деепр" });
-		push({ std::string("действ"), "страд" });
+		push({ "прич", "деепр" });
+		push({ "действ", "страд" });
 		push({ "имя", "отч", "фам" });
 		push({ "S", "A", "V", "PART", "PR", "CONJ", "INTJ", "ADV", "PRDK", "SPRO", "COM", "APRO", "ANUM" });
 
@@ -102,11 +111,11 @@ struct parser {
 
 		push({ "наст", "прош", "буд" });
 		push({ "1", "2", "3" });
-		push({ std::string("сов"), "несов" });
+		push({ "сов", "несов" });
 		push({ "сосл", "пов", "изъяв" });
 		push("гео");
 		push("орг");
-		push({ std::string("срав"), "прев" });
+		push({ "срав", "прев" });
 		push("инф");
 
 		push("притяж");
@@ -129,182 +138,260 @@ struct parser {
 
 };
 
-struct parsed_word {
-	enum {
-		serialization_version = 1
-	};
+struct feature {
+	uint64_t mask;
+	std::string string_ending;
+	ribosome::lstring ending;
 
-	std::string lemma;
-	std::string word;
+	MSGPACK_DEFINE(mask, string_ending);
 
-	typedef uint64_t feature_mask;
-	feature_mask features;
-
-	int ending_len;
-
-	parsed_word() : features(0ULL), ending_len(0) {}
+	bool operator<(const feature &other) const {
+		if (mask < other.mask)
+			return true;
+		if (mask > other.mask)
+			return false;
+		return ending < other.ending;
+	}
 };
 
-static inline bool default_process(const struct parsed_word &) { return false; }
+struct parsed_word {
+	ribosome::lstring lemma;
+	ribosome::lstring stem;
+	uint64_t indexed_id = 0;
+	int root_len = 0;
+
+	std::vector<feature> features;
+
+	parsed_word() {
+	}
+
+	void reset() {
+		features.clear();
+		root_len = 0;
+		lemma = ribosome::lstring();
+	}
+
+	void merge(const std::vector<feature> &other) {
+		std::set<feature> f(features.begin(), features.end());
+		f.insert(other.begin(), other.end());
+
+		features.clear();
+		features.insert(features.end(), f.begin(), f.end());
+	}
+
+	enum {
+		serialize_version_6 = 6,
+	};
+
+	template <typename Stream>
+	void msgpack_pack(msgpack::packer<Stream> &o) const {
+		o.pack_array(serialize_version_6);
+		o.pack((int)serialize_version_6);
+		o.pack(ribosome::lconvert::to_string(lemma));
+		o.pack(ribosome::lconvert::to_string(stem));
+		o.pack(indexed_id);
+		o.pack(root_len);
+		o.pack(features);
+	}
+
+	void msgpack_unpack(msgpack::object o) {
+		if (o.type != msgpack::type::ARRAY || o.via.array.size < 1) {
+			std::ostringstream ss;
+			ss << "parsed_word msgpack: type: " << o.type <<
+				", must be: " << msgpack::type::ARRAY <<
+				", size: " << o.via.array.size;
+			throw std::runtime_error(ss.str());
+		}
+
+		msgpack::object *p = o.via.array.ptr;
+		const uint32_t size = o.via.array.size;
+		uint16_t version = 0;
+		p[0].convert(&version);
+
+		if (version != size) {
+			std::ostringstream ss;
+			ss << "parsed_word msgpack: invalid version: " << version <<
+				", must be equal to array size: " << size;
+			throw std::runtime_error(ss.str());
+		}
+
+		std::string tmp;
+
+		switch (version) {
+		case serialize_version_6:
+			p[1].convert(&tmp);
+			lemma = ribosome::lconvert::from_utf8(tmp);
+			p[2].convert(&tmp);
+			stem = ribosome::lconvert::from_utf8(tmp);
+			p[3].convert(&indexed_id);
+			p[4].convert(&root_len);
+			p[5].convert(&features);
+			break;
+		default: {
+			std::ostringstream ss;
+			ss << "parsed_word msgpack: invalid version " << version;
+			throw msgpack::type_error();
+		}
+		}
+	}
+
+};
 
 class zparser {
-	public:
-		// return false if you want to stop further processing
-		typedef std::function<bool (const struct parsed_word &rec)> zparser_process;
-		zparser() : m_total(0), m_process(default_process) {
-			boost::locale::generator gen;
-			m_loc = gen("en_US.UTF8");
+public:
+	// return false if you want to stop further processing
+	typedef std::function<ribosome::error_info (struct parsed_word &rec)> zparser_process;
+	zparser(zparser_process process, const std::string &skip, const std::string &pass) : m_process(process) {
+		if (skip.size())
+			m_skip_mask = parse_features(skip, NULL);
+		if (pass.size())
+			m_pass_mask = parse_features(pass, NULL);
+	}
+
+	uint64_t parse_features(const std::string &elm_string, std::vector<std::string> *failed) const {
+		std::vector<std::string> elements;
+		boost::split(elements, elm_string, boost::is_any_of(","));
+
+		uint64_t feature_mask = 0;
+		for (auto &elm: elements) {
+			token_entity ent = m_p.try_parse(elm);
+			if (ent.position == -1) {
+				if (failed)
+					failed->push_back(elm);
+			} else {
+				if (ent.position < (int)sizeof(feature::mask) * 8)
+					feature_mask |= (uint64_t)1 << ent.position;
+			}
 		}
 
-		void set_process(const zparser_process &process) {
-			m_process = process;
+		return feature_mask;
+	}
+
+	ribosome::error_info parse_dict_string(const std::string &token) {
+		ribosome::error_info err;
+
+		size_t space_pos = token.find(' ');
+		if (space_pos == std::string::npos) {
+			return err;
 		}
 
-		std::vector<std::string> split(const std::string &sentence) {
-			lb::ssegment_index wmap(lb::word, sentence.begin(), sentence.end(), m_loc);
-			wmap.rule(lb::word_any);
+		if (space_pos <= 1) {
+			return err;
+		}
 
-			std::vector<std::string> ret;
-			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
-				ret.push_back(it->str());
+		std::string mixed_word = token.substr(1, space_pos - 1);
+		ribosome::lstring lw = ribosome::lconvert::from_utf8(mixed_word);
+
+		size_t root_end = lw.find(']');
+		if (root_end == ribosome::lstring::npos) {
+			return err;
+		}
+
+		size_t ending_len = lw.size() - (root_end + 1);
+		lw.erase(root_end, 1);
+
+		std::string elm_string = token.substr(space_pos + 1);
+
+		struct feature f;
+		f.mask = parse_features(elm_string, NULL);
+		if (f.mask == 0ULL)
+			return err;
+		if (f.mask & m_skip_mask)
+			return err;
+		if (!(f.mask & m_pass_mask))
+			return err;
+
+		//std::cout << "parse: " << ribosome::lconvert::to_string(lw) << ": " << elm_string << ", feaures: " << std::hex << f.mask << std::endl;
+		f.ending = lw.substr(lw.size() - ending_len);
+		f.string_ending = ribosome::lconvert::to_string(f.ending);
+
+		m_current.root_len = root_end;
+		m_current.features.emplace_back(f);
+		return err;
+	}
+
+	ribosome::error_info parse_file(const std::string &input_file) {
+		ribosome::error_info err;
+
+		std::ifstream in(input_file.c_str());
+
+		ribosome::timer t;
+		ribosome::timer file_time;
+
+		std::string line;
+
+		long total = 0;
+		long lemmas = 0;
+		long lines = 0;
+		long chunk = 100000;
+		long duration;
+		bool read_lemma = false;
+
+		while (std::getline(in, line)) {
+			if (++lines % chunk == 0) {
+				duration = t.restart();
+				std::cout << "Read and parsed lines: " << lines <<
+					", total words/features found: " << total <<
+					", lemmas: " << lemmas <<
+					", elapsed time: " << file_time.elapsed() << " msecs" <<
+					", speed: " << chunk * 1000 / duration << " lines/sec" <<
+					std::endl;
 			}
 
-			return ret;
-		}
-
-		bool parse_dict_string(const std::string &token, const std::string &lemma) {
-			//std::string token = boost::locale::to_lower(token_str, m_loc);
-
-			lb::ssegment_index wmap(lb::word, token.begin(), token.end(), m_loc);
-			wmap.rule(lb::word_any | lb::word_none);
-
-			std::string root;
-			std::string ending;
-			parsed_word rec;
-
-			std::vector<std::string> failed;
-
-			for (auto it = wmap.begin(), e = wmap.end(); it != e; ++it) {
-				// skip word prefixes
-				if ((root.size() == 0) && (it->str() != "["))
-					continue;
-
-				if (it->str() == "[") {
-					if (++it == e)
-						break;
-					root = boost::locale::to_lower(it->str(), m_loc);
-
-					if (++it == e)
-						break;
-
-					// something is broken, skip this line at all
-					if (it->str() != "]")
-						break;
-
-					if (++it == e)
-						break;
-
-					// ending check
-					// we assume here that ending can start with the word token
-					if (it->rule() & lb::word_any) {
-						do {
-							// there is no ending in this word if next token is space (or anything 'similar' if that matters)
-							// only not space tokens here mean (parts of) word ending, let's check it
-							if (isspace(it->str()[0]))
-								break;
-
-							ending += it->str();
-
-							if (++it == e)
-								break;
-						} while (true);
-
-						if (it == e)
-							break;
-					}
-				}
-
-				// skip this token if it is not word token
-				if (!(it->rule() & lb::word_any))
-					continue;
-
-				token_entity ent = m_p.try_parse(it->str());
-				if (ent.position == -1) {
-					failed.push_back(it->str());
-				} else {
-					if (ent.position < (int)sizeof(parsed_word::feature_mask) * 8)
-						rec.features |= (parsed_word::feature_mask)1 << ent.position;
-				}
+			if (line[0] == '@') {
+				read_lemma = false;
+				continue;
 			}
 
-			if (rec.features == 0ULL)
-				return true;
+			if (!read_lemma) {
+				err = m_process(m_current);
+				m_current.reset();
 
-			rec.word = root + ending;
-			rec.ending_len = ending.size();
-			rec.lemma = lemma;
-			m_total++;
-
-			return m_process(rec);
-		}
-
-		void parse_file(const std::string &input_file) {
-			std::ifstream in(input_file.c_str());
-
-			ioremap::warp::timer t;
-			ioremap::warp::timer total;
-
-			std::string line, lemma;
-
-			long lines = 0;
-			long chunk = 100000;
-			long duration;
-			bool read_lemma = false;
-
-			while (std::getline(in, line)) {
-				if (++lines % chunk == 0) {
-					duration = t.restart();
-					std::cout << "Read and parsed lines: " << lines <<
-						", total words/features found: " << m_total <<
-						", elapsed time: " << total.elapsed() << " msecs" <<
-						", speed: " << chunk * 1000 / duration << " lines/sec" <<
-						std::endl;
+				if (err) {
+					return err;
 				}
 
-				if (line[0] == '@') {
-					read_lemma = false;
-					continue;
-				}
+				m_current.reset();
 
-				if (!read_lemma) {
-					// next line contains lemma word
-					lemma = boost::locale::to_lower(line, m_loc);
-					read_lemma = true;
-					continue;
-				}
+				// next line contains lemma word
+				auto l = ribosome::lconvert::from_utf8(line);
+				read_lemma = true;
 
-				if (!parse_dict_string(line, lemma))
-					break;
+				m_current.lemma = ribosome::lconvert::to_lower(l);
+				lemmas++;
+				continue;
 			}
-			duration = total.elapsed();
-			std::cout << "Read and parsed " << lines << " lines, elapsed: " << duration <<
-				" msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
+
+			err = parse_dict_string(line);
+			if (err) {
+				return err;
+			}
+			total++;
+		}
+		if (m_current.features.size()) {
+			err = m_process(m_current);
+			if (err) {
+				return err;
+			}
 		}
 
-		int parser_features_num(void) const {
-			return m_p.unique;
-		}
+		duration = file_time.elapsed();
+		std::cout << "Read and parsed " << lines << " lines"
+			", lemmas: " << lemmas <<
+			", elapsed: " << duration <<
+			" msecs, speed: " << lines * 1000 / duration << " lines/sec" << std::endl;
 
-		int total_features_num(void) const {
-			return m_total;
-		}
+		return err;
+	}
 
-	private:
-		std::locale m_loc;
-		parser m_p;
-		int m_total;
+private:
+	parser m_p;
+	zparser_process m_process;
 
-		zparser_process m_process;
+	uint64_t m_skip_mask = 0;
+	uint64_t m_pass_mask = ~0ULL;
+
+	parsed_word m_current;
 };
 
 
