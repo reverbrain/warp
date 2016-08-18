@@ -30,6 +30,22 @@
     "request_header": "X-Request",
     "trace_header": "X-Trace",
     "application": {
-	    "language_detector_stats": "/home/zbr/awork/warp/build/lang.out"
+	    "language_detector_stats": "/home/zbr/tmp/language_models/language_detector.stats",
+	    "language_models": {
+		    "russian": {
+			    "rocksdb_path": "/home/zbr/tmp/language_models/rocksdb.russian",
+			    "error_model": {
+				    "replace": "/home/zbr/awork/warp/conf/error_models/russian/replace.txt",
+				    "around": "/home/zbr/awork/warp/conf/error_models/russian/around.txt"
+			    }
+		    },
+		    "english": {
+			    "rocksdb_path": "/home/zbr/tmp/language_models/rocksdb.english",
+			    "error_model": {
+				    "replace": "/home/zbr/awork/warp/conf/error_models/english/replace.txt",
+				    "around": "/home/zbr/awork/warp/conf/error_models/english/around.txt"
+			    }
+		    }
+	    }
     }
 }

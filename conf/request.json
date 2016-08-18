@@ -1,6 +1,7 @@
 {
 	
 	"request" : {
-		"prefix": "в лесу родилась ёлочка, в лесу она росла, зимой и летом стройная, зеленая была!... упячка - упфчка London - is the capital of Great Britain, New-York is the city"
+		"russian": "в лесу родилась ёлочка, в лесу она росла, зимой и летом стройная, зеленая была!... упячка - упфчка",
+		"english": "London - is the capital of Great Britain, New-York is the city; testing tests tested toasts"
 	}
 }

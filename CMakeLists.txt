@@ -11,10 +11,11 @@ SET(WARP_VERSION_FULL ${DEBFULLVERSION})
 set(CMAKE_CXX_FLAGS "-g -std=c++0x -W -Wall -Wextra -fstack-protector-all")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
-find_package(Boost REQUIRED COMPONENTS system program_options thread)
+find_package(Boost REQUIRED COMPONENTS system iostreams program_options thread)
 find_package(Ribosome REQUIRED)
 
 INCLUDE(cmake/locate_library.cmake)
+LOCATE_LIBRARY(EXPAT "expat.h" "expat")
 LOCATE_LIBRARY(MSGPACK "msgpack.hpp" "msgpack")
 LOCATE_LIBRARY(ROCKSDB "rocksdb/db.h" "rocksdb")
 
@@ -28,6 +29,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include
 	${PROJECT_SOURCE_DIR}/stem/libstemmer_c/include/
 	${Boost_INCLUDE_DIRS}
 	${MSGPACK_INCLUDE_DIRS}
+	${EXPAT_INCLUDE_DIRS}
 	${RIBOSOME_INCLUDE_DIRS}
 	${ROCKSDB_INCLUDE_DIRS}
 	${SWARM_INCLUDE_DIRS}

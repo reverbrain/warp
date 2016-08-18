@@ -30,6 +30,8 @@ namespace ioremap { namespace warp {
 template <typename S>
 class ngram {
 public:
+	const size_t profile_limit = 3000;
+
 	ngram() {}
 	ngram(int n) : m_n(n) {}
 
@@ -63,7 +65,7 @@ public:
 		m_map.clear();
 	}
 
-	void sort(size_t num) {
+	void sort() {
 		typedef std::pair<S, size_t> sp;
 		std::vector<sp> tmp(m_map.begin(), m_map.end());
 
@@ -76,7 +78,7 @@ public:
 			m_profile[it->first] = pos;
 
 			++pos;
-			if (pos == num)
+			if (pos == profile_limit)
 				break;
 		}
 	}
@@ -90,7 +92,7 @@ public:
 			size_t add;
 			auto it = m_profile.find(word);
 			if (it == m_profile.end()) {
-				add = m_profile.size();
+				add = profile_limit;
 			} else {
 				add = it->second;
 			}
@@ -137,9 +139,9 @@ public:
 		return true;
 	}
 
-	void sort(size_t num) {
+	void sort() {
 		for (auto &ng: m_ngrams) {
-			ng.second.sort(num);
+			ng.second.sort();
 		}
 	}
 
@@ -178,9 +180,9 @@ public:
 		return ret;
 	}
 
-	void sort(size_t num) {
+	void sort() {
 		for (auto &p: m_probs) {
-			p.second.sort(num);
+			p.second.sort();
 		}
 	}
 
