@@ -1,3 +1,2 @@
-usr/bin/warp_server
-usr/bin/warp_language_detector
+usr/bin/*
 usr/lib/libwarp_stem.so.*
