@@ -21,7 +21,7 @@ RUN	apt-get install -y libboost-system-dev libboost-filesystem-dev libboost-prog
 	git branch -v && \
 	dpkg-buildpackage -b && \
 	dpkg -i ../ribosome_*.deb ../ribosome-dev_*.deb && \
-	echo "Ribosome package has been updated and installed" && \
+	echo "Ribosome package has been updated and installed"
 
 RUN	cd /tmp && \
 	rm -rf warp && \
