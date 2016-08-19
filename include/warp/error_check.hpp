@@ -58,13 +58,14 @@ public:
 				continue;
 			}
 
-			auto lower_request = ribosome::lconvert::string_to_lower(member_it->value.GetString(),
+			ribosome::lstring text = ribosome::lconvert::from_utf8(member_it->value.GetString(),
 					member_it->value.GetStringLength());
 
+			auto lower_request = ribosome::lconvert::to_lower(text);
 			rapidjson::Value tokens(rapidjson::kArrayType);
 
 			ribosome::split spl;
-			auto all_words = spl.convert_split_words(lower_request.c_str(), lower_request.size());
+			auto all_words = spl.convert_split_words(lower_request, "");
 			for (auto &w: all_words) {
 				std::string word = ribosome::lconvert::to_string(w);
 				std::string lang = server()->detector().detect(word);

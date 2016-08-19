@@ -177,11 +177,11 @@ public:
 				}
 
 				std::string nohtml_request = html.text(" ");
-				auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
+				ribosome::lstring lt = ribosome::lconvert::from_utf8(nohtml_request);
+				auto lower_request = ribosome::lconvert::to_lower(lt);
 
 				ribosome::split spl;
-				auto all_words = spl.convert_split_words(lower_request.data(), lower_request.size(),
-						clear_symbols_without_numbers);
+				auto all_words = spl.convert_split_words(lower_request, clear_symbols_without_numbers);
 
 				if (m_tokenize) {
 					tokenize(member, alloc, all_words);
