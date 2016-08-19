@@ -13,7 +13,7 @@ FROM reverbrain/xenial-dev
 #	git config --global user.name "Evgeniy Polyakov"
 
 RUN	apt-get install -y libboost-system-dev libboost-filesystem-dev libboost-program-options-dev libboost-thread-dev && \
-	apt-get install -y libmsgpack-dev libswarm3-dev libthevoid3-dev ribosome-dev && \
+	apt-get install -y libmsgpack-dev libswarm3-dev libthevoid3-dev ribosome-dev libexpat-dev && \
 	cd /tmp && \
 	rm -rf ribosome && \
 	git clone https://github.com/reverbrain/ribosome && \
