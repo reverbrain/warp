@@ -14,6 +14,14 @@
 
 namespace ioremap { namespace warp {
 
+struct check_control {
+	std::string word;
+	ribosome::lstring lw;
+	int max_num = 10;
+	bool fast = false;
+};
+
+
 class checker {
 public:
 	ribosome::error_info open(const std::string &path) {
@@ -38,63 +46,64 @@ public:
 		return err;
 	}
 
-	ribosome::error_info check(const std::string &word, const ribosome::lstring &lw, int max_num,
-			std::vector<dictionary::word_form> *ret) {
+	ribosome::error_info check(const check_control &ctl, std::vector<dictionary::word_form> *ret) {
 		ribosome::error_info err;
-		if (word.empty())
+		if (ctl.word.empty())
 			return err;
 
 		dictionary::word_form wf;
-		read_word(word, &wf);
+		read_word(ctl.word, &wf);
 		if (wf.word.size()) {
 			ret->push_back(wf);
 			return err;
 		}
 
-		read_transform(word, &wf);
+		read_transform(ctl.word, &wf);
 		if (wf.word.size()) {
 			ret->push_back(wf);
 			return err;
 		}
 
 		std::vector<dictionary::word_form> tmp;
-		err = norvig_check(word, lw, &tmp);
+		err = norvig_check(ctl.word, ctl.lw, &tmp);
 		if (err) {
 			return err;
 		}
 
-		if (tmp.empty()) {
-			err = ngram_check(word, lw, &tmp);
+		if (tmp.empty() && !ctl.fast) {
+			err = ngram_check(ctl.word, ctl.lw, &tmp);
 			if (err) {
 				return err;
 			}
 		}
 
-		*ret = sort(lw, tmp, max_num);
+		*ret = sort(ctl.lw, tmp, ctl.max_num);
 		return err;
 	}
 
-	ribosome::error_info check(const std::string &word, int max_num, std::vector<dictionary::word_form> *ret) {
-		ribosome::lstring lw = ribosome::lconvert::from_utf8(word);
-		ribosome::lstring lower = ribosome::lconvert::to_lower(lw);
+	ribosome::error_info check(const std::string &word, std::vector<dictionary::word_form> *ret) {
+		struct check_control ctl;
 
-		return check(word, lower, max_num, ret);
+		ctl.word = word;
+		ctl.lw = ribosome::lconvert::from_utf8(word);
+		ctl.lw = ribosome::lconvert::to_lower(ctl.lw);
+
+		return check(ctl, ret);
 	}
 
 	ribosome::error_info check(const std::string &word, const ribosome::lstring &lw, std::vector<dictionary::word_form> *ret) {
-		return check(word, lw, default_max_num, ret);
-	}
+		struct check_control ctl;
 
-	ribosome::error_info check(const std::string &word, std::vector<dictionary::word_form> *ret) {
-		return check(word, default_max_num, ret);
+		ctl.word = word;
+		ctl.lw = lw;
+
+		return check(ctl, ret);
 	}
 
 private:
 	dictionary::database m_db;
 	norvig::lang_model m_model;
 	int m_ngram = 2;
-
-	int default_max_num = 10;
 
 	ribosome::error_info read_word(const std::string &word, dictionary::word_form *wf) {
 		std::string key = m_db.options().word_form_prefix + word;

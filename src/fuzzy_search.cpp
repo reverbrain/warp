@@ -15,13 +15,16 @@ int main(int argc, char *argv[])
 
 	std::string rocksdb_path;
 	std::string replace, around;
-	float boundary;
+	int num;
+	bool fast;
 	generic.add_options()
 		("help", "This help message")
 		("rocksdb", bpo::value<std::string>(&rocksdb_path)->required(), "Rocksdb database")
 		("lang-model-replace", bpo::value<std::string>(&replace), "Error language model: letter replacement mapping file")
 		("lang-model-around", bpo::value<std::string>(&around), "Error language model: letter keyboard invlid pressing mapping file")
-		("boundary", bpo::value<float>(&boundary)->default_value(0.1), "Internal boundary to normalized frequencies")
+		("num", bpo::value<int>(&num)->default_value(3), "Number of top results to return")
+		("fast", bpo::value<bool>(&fast)->default_value(false),
+		 	"Whether to perform only fast Norvig check, slow ngram check may take order of magnitude longer (seconds) to complete")
 		;
 
 	bpo::options_description cmdline_options;
@@ -56,7 +59,15 @@ int main(int argc, char *argv[])
 
 	auto dump = [&] (const std::string &t) -> void {
 		wfs.clear();
-		err = ch.check(t, boundary, &wfs);
+
+		struct warp::check_control ctl;
+		ctl.word = t;
+		ctl.lw = ribosome::lconvert::from_utf8(ctl.word);
+		ctl.lw = ribosome::lconvert::to_lower(ctl.lw);
+		ctl.fast = fast;
+		ctl.max_num = num;
+
+		err = ch.check(ctl, &wfs);
 		if (err) {
 			std::cerr << "Could not check word: " << t << ", error: " << err.message() << std::endl;
 			exit(err.code());

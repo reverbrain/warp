@@ -16,7 +16,15 @@ public:
 	using thevoid::simple_request_stream_error<Server>::server;
 
 	virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
-		(void) http_req;
+		bool fast = false;
+		if (http_req.url().query().has_item("fast")) {
+			fast = true;
+		}
+		int max_num = 3;
+		if (http_req.url().query().has_item("max_num")) {
+			auto opt = http_req.url().query().item_value("max_num");
+			max_num = atoi((*opt).c_str());
+		}
 
 		rapidjson::Document doc;
 		const char *ptr = boost::asio::buffer_cast<const char*>(buffer);
@@ -60,8 +68,16 @@ public:
 			for (auto &w: all_words) {
 				std::string word = ribosome::lconvert::to_string(w);
 				std::string lang = server()->detector().detect(word);
+
+				struct check_control ctl;
+				ctl.word = word;
+				ctl.lw = w;
+				ctl.fast = fast;
+				ctl.max_num = max_num;
+
 				std::vector<warp::dictionary::word_form> forms;
-				auto err = server()->check(lang, word, w, &forms);
+
+				auto err = server()->check(lang, ctl, &forms);
 				if (err) {
 					warp::dictionary::word_form orig;
 					orig.word = word;

@@ -311,15 +311,14 @@ public:
 		return m_det.save_file(m_language_stats_path.c_str());
 	}
 
-	ribosome::error_info check(const std::string &lang, const std::string &word, const ribosome::lstring &lw,
-			std::vector<warp::dictionary::word_form> *ret) {
+	ribosome::error_info check(const std::string &lang, const warp::check_control &ctl, std::vector<warp::dictionary::word_form> *ret) {
 		auto ch = m_checkers.find(lang);
 		if (ch == m_checkers.end()) {
 			return ribosome::create_error(-ENOENT, "there is no language detector for lang '%s', word: '%s'",
-					lang.c_str(), word.c_str());
+					lang.c_str(), ctl.word.c_str());
 		}
 
-		return ch->second->check(word, lw, ret);
+		return ch->second->check(ctl, ret);
 	}
 
 private:
