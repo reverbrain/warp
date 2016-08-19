@@ -15,6 +15,15 @@ FROM reverbrain/xenial-dev
 RUN	apt-get install -y libboost-system-dev libboost-filesystem-dev libboost-program-options-dev libboost-thread-dev && \
 	apt-get install -y libmsgpack-dev libswarm3-dev libthevoid3-dev ribosome-dev && \
 	cd /tmp && \
+	rm -rf ribosome && \
+	git clone https://github.com/reverbrain/ribosome && \
+	cd ribosome && \
+	git branch -v && \
+	dpkg-buildpackage -b && \
+	dpkg -i ../ribosome_*.deb ../ribosome-dev_*.deb && \
+	echo "Ribosome package has been updated and installed" && \
+
+RUN	cd /tmp && \
 	rm -rf warp && \
 	git clone https://github.com/reverbrain/warp && \
 	cd warp && \
