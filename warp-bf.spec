@@ -1,6 +1,6 @@
 Summary:	Warp - language detector and lexical processor engine
 Name:		greylock
-Version:	0.1.0
+Version:	1.0.0
 Release:	1%{?dist}.1
 
 License:	GPLv3
@@ -62,6 +62,23 @@ rm -rf %{buildroot}
 %{_includedir}/*
 
 %changelog
+* Fri Aug 19 2016 Evgeniy Polyakov <zbr@ioremap.net> - 1.0.0
+- implemented error checking
+- added wikiepedia dump parser
+- added html parser
+- added fuzzy search
+- store ngram language model into rocksdb
+- use norvig+ngram error checkers
+- added replace/around language models
+- added language detector
+- upgraded to the latest ribosome package
+- added dockerfile
+- added go binding
+- server: implemented lang detection and stemming handlers
+- Get rid of old warp applications
+- Implemented N-gram language detector as described in article 'N-Gram-Based Text Categorization'
+- Updated to the latest thevoid (3.0.0)
+
 * Tue Mar 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 0.1.0
 - Initial release
 
