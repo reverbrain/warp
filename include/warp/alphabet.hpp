@@ -34,12 +34,7 @@ public:
 	}
 
 private:
-	struct letter_hash {
-		unsigned long operator()(const ribosome::letter& l) const {
-			return l.l;
-		}
-	};
-	std::unordered_map<ribosome::letter, int, letter_hash> m_alphabet;
+	std::unordered_map<ribosome::letter, int, ribosome::letter_hash> m_alphabet;
 };
 
 class alphabets_checker {
