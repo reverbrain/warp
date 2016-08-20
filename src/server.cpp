@@ -15,10 +15,9 @@
  */
 
 #include "warp/error_check.hpp"
-#include "warp/fuzzy.hpp"
 #include "warp/json.hpp"
 #include "warp/jsonvalue.hpp"
-#include "warp/ngram.hpp"
+#include "warp/language_model.hpp"
 #include "warp/stem.hpp"
 #include "warp/thevoid_stream.hpp"
 
@@ -105,11 +104,10 @@ public:
 			auto lower_request = ribosome::lconvert::string_to_lower(nohtml_request);
 			std::string clear_request = clear_text(lower_request);
 
-			server()->detector().load_text(clear_request, lang);
-			int err = server()->detector_save();
+			auto err = server()->detector_save(clear_request, lang);
 			if (err) {
-				send_error(swarm::http_response::internal_server_error, err,
-						"could not save statistics data");
+				send_error(swarm::http_response::internal_server_error, err.code(),
+						"could not save statistics data: %s", err.message().c_str());
 				return;
 			}
 
@@ -233,7 +231,7 @@ public:
 				const auto &word = p.first;
 				const auto &positions = p.second;
 
-				std::string lang = server()->detector().detect(word);
+				std::string lang = server()->language(word);
 
 				rapidjson::Value lv(lang.c_str(), lang.size(), alloc);
 				rapidjson::Value wv(word.c_str(), word.size(), alloc);
@@ -268,7 +266,7 @@ public:
 				auto word = ribosome::lconvert::to_string(w);
 				words.push_back(word);
 
-				std::string lang = server()->detector().detect(word);
+				std::string lang = server()->language(word);
 
 				if (m_want_stemming) {
 					stems.push_back(server()->stemmer().stem(word, lang, ""));
@@ -303,44 +301,43 @@ public:
 		return m_stemmer;
 	}
 
-	warp::detector<std::string, std::string> &detector() {
-		return m_det;
+	std::string language(const std::string &word) {
+		return m_lch.language(word);
+	}
+	std::string language(const ribosome::lstring &lw) {
+		return m_lch.language(lw);
+	}
+	std::string language(const std::string &word, const ribosome::lstring &lw) {
+		return m_lch.language(word, lw);
 	}
 
-	int detector_save() {
-		return m_det.save_file(m_language_stats_path.c_str());
+	ribosome::error_info detector_save(const std::string &text, const std::string &lang) {
+		return m_lch.detector_save(text, lang);
 	}
 
+	ribosome::error_info check(const warp::check_control &ctl, std::vector<warp::dictionary::word_form> *ret) {
+		return m_lch.check(ctl, ret);
+	}
 	ribosome::error_info check(const std::string &lang, const warp::check_control &ctl, std::vector<warp::dictionary::word_form> *ret) {
-		auto ch = m_checkers.find(lang);
-		if (ch == m_checkers.end()) {
-			return ribosome::create_error(-ENOENT, "there is no language detector for lang '%s', word: '%s'",
-					lang.c_str(), ctl.word.c_str());
-		}
-
-		return ch->second->check(ctl, ret);
+		return m_lch.check(lang, ctl, ret);
 	}
 
 private:
-	std::string m_language_stats_path;
-	warp::detector<std::string, std::string> m_det;
 	warp::stemmer m_stemmer;
-	std::map<std::string, std::unique_ptr<warp::checker>> m_checkers;
+	warp::language_checker m_lch;
 
 	bool lang_init(const rapidjson::Value &config) {
 		const char *lang_stats = warp::get_string(config, "language_detector_stats");
 		if (!lang_stats) {
-			WLOG_ERROR("initialize: 'language_detector_stats' option must be a string");
+			WLOG_ERROR("\"application.language_detector_stats\" option must be a string");
 			return false;
 		}
 
-		int err = m_det.load_file(lang_stats);
+		auto err = m_lch.load_langdetect_stats(lang_stats);
 		if (err) {
-			WLOG_ERROR("initialize: could not load language detector stats from '%s': %d", lang_stats, err);
+			WLOG_ERROR("could not load language detector: %s [%d]", err.message().c_str(), err.code());
 			return false;
 		}
-
-		m_language_stats_path.assign(lang_stats);
 
 		auto &lm = warp::get_object(config, "language_models");
 		if (!lm.IsObject()) {
@@ -354,43 +351,42 @@ private:
 				return false;
 			}
 
-			std::string lang = member_it->name.GetString();
-			std::unique_ptr<warp::checker> ch(new warp::checker());
+			warp::language_model lm;
+			lm.language = member_it->name.GetString();
 
-			if (!load_model(member_it->value, *ch)) {
+			if (!parse_model(member_it->value, &lm)) {
 				return false;
 			}
 
-			m_checkers.emplace(std::make_pair<std::string, std::unique_ptr<warp::checker>>(std::move(lang), std::move(ch)));
+			auto err = m_lch.load_language_model(lm);
+			if (err) {
+				WLOG_ERROR("could not load language model, lang: %s, error: %s [%d]",
+						lm.language.c_str(), err.message().c_str(), err.code());
+				return false;
+			}
 		}
 
 		return true;
 	}
 
-	bool load_model(const rapidjson::Value &config, warp::checker &ch) {
+	bool parse_model(const rapidjson::Value &config, warp::language_model *lm) {
 		const char *path = warp::get_string(config, "rocksdb_path");
 		if (!path) {
 			WLOG_ERROR("\"rocksdb_path\" must be a string in language model");
 			return false;
 		}
 
-		auto err = ch.open(path);
-		if (err) {
-			WLOG_ERROR("could not open database '%s': %s", path, err.message().c_str());
-			return false;
-		}
+		lm->lang_model_path.assign(path);
 
 		auto &em = warp::get_object(config, "error_model");
 		if (em.IsObject()) {
 			const char *replace = warp::get_string(em, "replace");
 			const char *around = warp::get_string(em, "around");
 
-			err = ch.load_error_models(replace, around);
-			if (err) {
-				WLOG_ERROR("could not load error models: replace: %s, around: %s, error: %s",
-						replace, around, err.message().c_str());
-				return false;
-			}
+			if (replace)
+				lm->error.replace_path.assign(replace);
+			if (around)
+				lm->error.replace_path.assign(around);
 		}
 
 		return true;

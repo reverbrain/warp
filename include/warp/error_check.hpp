@@ -1,8 +1,8 @@
 #pragma once
 
-#include "warp/fuzzy.hpp"
 #include "warp/json.hpp"
 #include "warp/jsonvalue.hpp"
+#include "warp/language_model.hpp"
 #include "warp/thevoid_stream.hpp"
 
 #include <ribosome/split.hpp>
@@ -16,9 +16,10 @@ public:
 	using thevoid::simple_request_stream_error<Server>::server;
 
 	virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
-		bool fast = false;
-		if (http_req.url().query().has_item("fast")) {
-			fast = true;
+		int level = warp::check_control::level_2;
+		if (http_req.url().query().has_item("level")) {
+			auto opt = http_req.url().query().item_value("level");
+			level = atoi((*opt).c_str());
 		}
 		int max_num = 3;
 		if (http_req.url().query().has_item("max_num")) {
@@ -68,12 +69,12 @@ public:
 			auto all_words = spl.convert_split_words(lower_request, "");
 			for (auto &w: all_words) {
 				std::string word = ribosome::lconvert::to_string(w);
-				std::string lang = server()->detector().detect(word);
+				std::string lang = server()->language(word, w);
 
 				struct check_control ctl;
 				ctl.word = word;
 				ctl.lw = w;
-				ctl.fast = fast;
+				ctl.level = level;
 				ctl.max_num = max_num;
 
 				std::vector<warp::dictionary::word_form> forms;
