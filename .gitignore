@@ -25,3 +25,4 @@ warp_trie_test
 warp_zpack
 cmake_install.cmake
 build/*
+bindings/go/main
