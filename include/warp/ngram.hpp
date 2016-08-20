@@ -131,12 +131,10 @@ public:
 		}
 	}
 
-	bool load_text(const S &text) {
+	void load_text(const S &text) {
 		for (auto &ng: m_ngrams) {
 			ng.second.load(text);
 		}
-
-		return true;
 	}
 
 	void sort() {
@@ -167,17 +165,16 @@ class detector {
 public:
 	detector() {}
 
-	bool load_text(const S &text, const D &id) {
+	void load_text(const S &text, const D &id) {
 		auto it = m_probs.find(id);
 		if (it != m_probs.end()) {
-			return it->second.load_text(text);
+			it->second.load_text(text);
+			return;
 		}
 
-		probability<S> p(4);
-		bool ret = p.load_text(text);
-		if (ret)
-			m_probs.emplace(std::pair<D, probability<S>>(id, p));
-		return ret;
+		probability<S> p(3);
+		p.load_text(text);
+		m_probs.emplace(std::pair<D, probability<S>>(id, p));
 	}
 
 	void sort() {
