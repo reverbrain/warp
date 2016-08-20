@@ -1,5 +1,5 @@
 Summary:	Warp - language detector and lexical processor engine
-Name:		greylock
+Name:		warp
 Version:	1.0.0
 Release:	1%{?dist}.1
 
@@ -12,7 +12,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:	ribosome-devel
 BuildRequires:	libswarm3-devel, libthevoid3-devel
-BuildRequires:	boost-devel, boost-system, boost-program-options, boost-thread
+BuildRequires:	boost-devel, boost-system, boost-program-options, boost-thread, boost-iostreams
 BuildRequires:	msgpack-devel
 BuildRequires:	cmake >= 2.6
 
@@ -52,14 +52,15 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
-%{_bindir}/warp_server
-%{_bindir}/warp_detector
+%{_bindir}/*
+%{_libdir}/libwarp_stem.so.*
 %doc conf/
 
 
 %files devel
 %defattr(-,root,root,-)
 %{_includedir}/*
+%{_libdir}/libwarp_stem.so
 
 %changelog
 * Fri Aug 19 2016 Evgeniy Polyakov <zbr@ioremap.net> - 1.0.0
