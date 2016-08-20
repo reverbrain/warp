@@ -20,7 +20,6 @@ target_link_libraries(warp_html
 add_executable(warp_wikipedia wikipedia.cpp)
 target_link_libraries(warp_wikipedia
 	${Boost_LIBRARIES}
-	${EXPAT_LIBRARIES}
 	${MSGPACK_LIBRARIES}
 	${RIBOSOME_LIBRARIES}
 	${ROCKSDB_LIBRARIES}
