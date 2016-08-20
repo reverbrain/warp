@@ -2,6 +2,7 @@
 #define __FUZZY_FUZZY_HPP
 
 #include "warp/database.hpp"
+#include "warp/ngram.hpp"
 #include "warp/norvig.hpp"
 #include "warp/substring.hpp"
 
@@ -18,7 +19,14 @@ struct check_control {
 	std::string word;
 	ribosome::lstring lw;
 	int max_num = 10;
-	bool fast = false;
+
+	enum {
+		level_0 = 0,
+		level_1,
+		level_2,
+	};
+
+	int level = level_2;
 };
 
 
@@ -64,13 +72,17 @@ public:
 			return err;
 		}
 
+		if (ctl.level == check_control::level_0) {
+			return err;
+		}
+
 		std::vector<dictionary::word_form> tmp;
 		err = norvig_check(ctl.word, ctl.lw, &tmp);
 		if (err) {
 			return err;
 		}
 
-		if (tmp.empty() && !ctl.fast) {
+		if (tmp.empty() && (ctl.level >= check_control::level_2)) {
 			err = ngram_check(ctl.word, ctl.lw, &tmp);
 			if (err) {
 				return err;
@@ -291,7 +303,6 @@ private:
 		return ret;
 	}
 };
-
 
 }} // namespace ioremap::warp
 

@@ -16,15 +16,18 @@ int main(int argc, char *argv[])
 	std::string rocksdb_path;
 	std::string replace, around;
 	int num;
-	bool fast;
+	int level;
 	generic.add_options()
 		("help", "This help message")
 		("rocksdb", bpo::value<std::string>(&rocksdb_path)->required(), "Rocksdb database")
 		("lang-model-replace", bpo::value<std::string>(&replace), "Error language model: letter replacement mapping file")
 		("lang-model-around", bpo::value<std::string>(&around), "Error language model: letter keyboard invlid pressing mapping file")
 		("num", bpo::value<int>(&num)->default_value(3), "Number of top results to return")
-		("fast", bpo::value<bool>(&fast)->default_value(false),
-		 	"Whether to perform only fast Norvig check, slow ngram check may take order of magnitude longer (seconds) to complete")
+		("level", bpo::value<int>(&level)->default_value(warp::check_control::level_2),
+		 	"Check level:\n"
+			"  0: check whether this word already exists or there is direct transform from this word to vocabulary one\n"
+			"  1: previous check plus Norvig 1-2 check using language error models\n"
+			"  2: previous checks plus ngram check (very slow, may take order of magnitude longer (seconds) to complete)\n")
 		;
 
 	bpo::options_description cmdline_options;
@@ -64,7 +67,7 @@ int main(int argc, char *argv[])
 		ctl.word = t;
 		ctl.lw = ribosome::lconvert::from_utf8(ctl.word);
 		ctl.lw = ribosome::lconvert::to_lower(ctl.lw);
-		ctl.fast = fast;
+		ctl.level = level;
 		ctl.max_num = num;
 
 		err = ch.check(ctl, &wfs);
