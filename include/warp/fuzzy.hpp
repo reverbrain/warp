@@ -24,9 +24,10 @@ struct check_control {
 		level_0 = 0,
 		level_1,
 		level_2,
+		level_3,
 	};
 
-	int level = level_2;
+	int level = level_3;
 };
 
 
@@ -65,6 +66,9 @@ public:
 			ret->push_back(wf);
 			return err;
 		}
+		if (ctl.level == check_control::level_0) {
+			return err;
+		}
 
 		read_transform(ctl.word, &wf);
 		if (wf.word.size()) {
@@ -72,7 +76,7 @@ public:
 			return err;
 		}
 
-		if (ctl.level == check_control::level_0) {
+		if (ctl.level == check_control::level_1) {
 			return err;
 		}
 
@@ -82,7 +86,7 @@ public:
 			return err;
 		}
 
-		if (tmp.empty() && (ctl.level >= check_control::level_2)) {
+		if (tmp.empty() && (ctl.level >= check_control::level_3)) {
 			err = ngram_check(ctl.word, ctl.lw, &tmp);
 			if (err) {
 				return err;

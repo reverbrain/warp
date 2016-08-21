@@ -26,8 +26,9 @@ int main(int argc, char *argv[])
 		("level", bpo::value<int>(&level)->default_value(warp::check_control::level_2),
 		 	"Check level:\n"
 			"  0: check whether this word already exists or there is direct transform from this word to vocabulary one\n"
-			"  1: previous check plus Norvig 1-2 check using language error models\n"
-			"  2: previous checks plus ngram check (very slow, may take order of magnitude longer (seconds) to complete)\n")
+			"  1: previous check plus check whether there is direct transform from this word to vocabulary one\n"
+			"  2: previous checks plus Norvig 1-2-edits check using language error models\n"
+			"  3: previous checks plus ngram check (very slow, may take order of magnitude longer (seconds) to complete)\n")
 		;
 
 	bpo::options_description cmdline_options;

@@ -16,7 +16,7 @@ public:
 	using thevoid::simple_request_stream_error<Server>::server;
 
 	virtual void on_request(const thevoid::http_request &http_req, const boost::asio::const_buffer &buffer) {
-		int level = warp::check_control::level_2;
+		int level = warp::check_control::level_3;
 		if (http_req.url().query().has_item("level")) {
 			auto opt = http_req.url().query().item_value("level");
 			level = atoi((*opt).c_str());
