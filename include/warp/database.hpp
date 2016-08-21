@@ -302,6 +302,7 @@ public:
 		}
 
 		rocksdb::Options dbo;
+		dbo.OptimizeForPointLookup(4);
 		dbo.max_open_files = 1000;
 		//dbo.disableDataSync = true;
 
@@ -311,10 +312,6 @@ public:
 		dbo.create_missing_column_families = true;
 
 		dbo.merge_operator.reset(new merge_operator);
-
-		//dbo.prefix_extractor.reset(NewFixedPrefixTransform(3));
-		//dbo.memtable_prefix_bloom_bits = 100000000;
-		//dbo.memtable_prefix_bloom_probes = 6;
 
 		rocksdb::BlockBasedTableOptions table_options;
 		table_options.block_cache = rocksdb::NewLRUCache(m_opts.lru_cache_size); // 100MB of uncompresseed data cache
