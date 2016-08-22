@@ -61,7 +61,7 @@ public:
 			return err;
 
 		dictionary::word_form wf;
-		read_word(ctl.word, &wf);
+		err = read_word(ctl.word, &wf);
 		if (wf.word.size()) {
 			ret->push_back(wf);
 			return err;
@@ -70,7 +70,7 @@ public:
 			return err;
 		}
 
-		read_transform(ctl.word, &wf);
+		err = read_transform(ctl.word, &wf);
 		if (wf.word.size()) {
 			ret->push_back(wf);
 			return err;
