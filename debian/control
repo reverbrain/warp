@@ -11,6 +11,7 @@ Build-Depends:
  libboost-system-dev,
  libboost-program-options-dev,
  libboost-thread-dev,
+ libboost-iostreams-dev,
  libmsgpack-dev,
  libswarm3-dev,
  libthevoid3-dev
@@ -35,6 +36,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends},
  libboost-system-dev,
  libboost-program-options-dev,
  libboost-thread-dev,
+ libboost-iostreams-dev,
  libmsgpack-dev,
  libswarm3-dev,
  libthevoid3-dev
