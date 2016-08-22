@@ -18,7 +18,7 @@ struct language_model {
 class language_checker {
 public:
 	ribosome::error_info load_language_model(const language_model &m) {
-		std::unique_ptr<warp::checker> ch(new warp::checker());
+		std::shared_ptr<warp::checker> ch(new warp::checker());
 
 		auto err = ch->open(m.lang_model_path.c_str());
 		if (err) {
@@ -32,9 +32,7 @@ public:
 					m.error.replace_path.c_str(), m.error.around_path.c_str(), err.message().c_str());
 		}
 
-		std::lock_guard<std::mutex> guard(m_lock);
-		m_checkers.emplace(std::pair<std::string, std::unique_ptr<warp::checker>>(m.language, std::move(ch)));
-
+		m_checkers.emplace(std::pair<std::string, std::shared_ptr<warp::checker>>(m.language, std::move(ch)));
 		return ribosome::error_info();
 	}
 
@@ -64,22 +62,17 @@ public:
 	}
 
 	ribosome::error_info check(const std::string &lang, const check_control &ctl, std::vector<dictionary::word_form> *ret) {
-		std::unique_lock<std::mutex> guard(m_stats_lock);
-		auto ch = m_checkers.find(lang);
-		if (ch == m_checkers.end()) {
+		auto it = m_checkers.find(lang);
+		if (it == m_checkers.end()) {
 			return ribosome::create_error(-ENOENT, "there is no language detector for lang '%s', word: '%s'",
 					lang.c_str(), ctl.word.c_str());
 		}
-		guard.unlock();
 
-		return ch->second->check(ctl, ret);
+		return it->second->check(ctl, ret);
 	}
 
 	ribosome::error_info detector_save(const std::string &text, const std::string &lang) {
 		m_det.load_text(text, lang);
-
-		std::lock_guard<std::mutex> guard(m_stats_lock);
-
 		m_det.sort();
 
 		int err = m_det.save_file(m_language_stats_path.c_str());
@@ -116,10 +109,8 @@ public:
 
 
 private:
-	std::mutex m_lock;
-	std::map<std::string, std::unique_ptr<warp::checker>> m_checkers;
+	std::map<std::string, std::shared_ptr<warp::checker>> m_checkers;
 
-	std::mutex m_stats_lock;
 	std::string m_language_stats_path;
 	detector<std::string, std::string> m_det;
 
@@ -128,7 +119,6 @@ private:
 
 		std::vector<dictionary::word_form> tmp;
 
-		std::unique_lock<std::mutex> guard(m_stats_lock);
 		for (const auto &p: m_checkers) {
 			const auto &ch = p.second;
 			const auto &lang = p.first;
@@ -138,7 +128,6 @@ private:
 				return lang;
 			}
 		}
-		guard.unlock();
 
 		return m_det.detect(ctl.word);
 	}
